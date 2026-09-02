@@ -6,37 +6,9 @@ from .models import User
 
 @admin.register(User)
 class TerritoRideUserAdmin(UserAdmin):  # type: ignore[type-arg]
-    list_display = (
-        "username",
-        "athlete_id",
-        "is_staff",
-        "date_joined",
-    )
-    list_filter = ("is_staff", "is_superuser", "is_active", "groups")
+    list_display = ("username", "athlete_id", "is_staff", "date_joined")
     fieldsets = (
-        (None, {"fields": ("username", "password")}),
-        ("Personal info", {"fields": ("first_name", "last_name", "email")}),
-        (
-            "Permissions",
-            {
-                "fields": (
-                    "is_active",
-                    "is_staff",
-                    "is_superuser",
-                    "groups",
-                    "user_permissions",
-                )
-            },
-        ),
-        ("Important dates", {"fields": ("last_login", "date_joined")}),
-        (
-            "Strava",
-            {
-                "fields": (
-                    "athlete_id",
-                    "strava_token_expires_at",
-                )
-            },
-        ),
+        *UserAdmin.fieldsets,  # type: ignore[misc]  # django-stubs types this as possibly None
+        ("Strava", {"fields": ("athlete_id", "strava_token_expires_at")}),
     )
     readonly_fields = ("athlete_id", "strava_token_expires_at")

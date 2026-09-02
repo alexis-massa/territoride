@@ -15,8 +15,7 @@
       };
       if (window.opener) {
         window.opener.postMessage(payload, window.location.origin);
-        // A same-tick close can race the message delivery in some browsers;
-        // deferring to the next tick guarantees the opener has it first.
+        // deferred: an immediate close() can race postMessage delivery in some browsers
         setTimeout(function () {
           window.close();
         }, 0);

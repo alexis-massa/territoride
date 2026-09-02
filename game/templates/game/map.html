@@ -57,11 +57,7 @@
     var connectButton = document.getElementById("connect-strava");
     if (connectButton) {
       connectButton.addEventListener("click", function () {
-        var popup = window.open(
-          "{% url 'accounts:strava_authorize' %}",
-          "strava_oauth",
-          "width=600,height=700"
-        );
+        window.open("{% url 'accounts:strava_authorize' %}", "strava_oauth", "width=600,height=700");
 
         function handleMessage(event) {
           if (event.origin !== window.location.origin) return;

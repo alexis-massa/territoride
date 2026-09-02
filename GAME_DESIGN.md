@@ -27,7 +27,7 @@ require a redeploy.
 | Loop closing tolerance | Start and end of the activity must be within **50m** of each other for the route to be considered a loop candidate |
 | Minimum enclosed area | **1 hectare (0.01 km²)** — filters out GPS noise loops (e.g. a parking lot circle) |
 | Maximum territory size | **50 km²** per single capture — forces players toward multiple smaller, contestable territories instead of one mega-loop claiming a whole valley |
-| Self-intersecting routes | Reject for v1 (`shapely`/`ST_IsValid` check). Figure-eight → largest simple sub-loop is a good v2 improvement, not MVP scope |
+| Self-intersecting routes | Reject for v1 (GEOS `is_valid` check via GeoDjango's geometry API). Figure-eight → largest simple sub-loop is a good v2 improvement, not MVP scope |
 | Overlap | Territories cannot overlap. A new loop's polygon is clipped against existing owned polygons (`ST_Difference`); the overlapping portion is a **contest**, resolved by the conflict rules in Phase 8/9, not an automatic overwrite |
 
 ## Points of Interest

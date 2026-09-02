@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}{{ user.username }} — TerritoRide{% endblock %}
+
+{% block body %}
+  <main style="max-width: 32rem; margin: 3rem auto; padding: 0 1rem; font-family: sans-serif;">
+    <p><a href="{% url 'map' %}">&larr; Back to map</a></p>
+    <h1>{{ user.username }}</h1>
+    <p>Athlete ID: {{ user.athlete_id }}</p>
+    <p>Member since: {{ user.date_joined|date:"F Y" }}</p>
+  </main>
+{% endblock %}

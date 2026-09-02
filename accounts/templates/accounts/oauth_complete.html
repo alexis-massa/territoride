@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Connecting to Strava…</title>
+</head>
+<body>
+  <p>{{ message }}</p>
+  <script>
+    (function () {
+      var payload = {
+        source: "strava-oauth",
+        status: "{{ status|escapejs }}",
+        message: "{{ message|escapejs }}"
+      };
+      if (window.opener) {
+        window.opener.postMessage(payload, window.location.origin);
+        window.close();
+      }
+    })();
+  </script>
+</body>
+</html>

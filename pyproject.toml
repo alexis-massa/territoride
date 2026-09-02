@@ -1,0 +1,56 @@
+[project]
+name = "territoride"
+version = "0.1.0"
+description = "A location-based strategy game built on real-world Strava activities."
+requires-python = ">=3.13"
+dependencies = [
+    "django>=5.1",
+    "django-environ>=0.14.0",
+    "psycopg[binary]>=3.3.5",
+]
+
+[dependency-groups]
+dev = [
+    "django-stubs[compatible-mypy]>=6.1.0",
+    "mypy>=2.3.1",
+    "ruff>=0.16.5",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "DJ",  # flake8-django
+    "SIM", # flake8-simplify
+    "C4",  # flake8-comprehensions
+]
+ignore = [
+    "DJ001", # nullable CharField/TextField — fine for optional model fields
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["config", "game"]
+
+[tool.mypy]
+python_version = "3.13"
+plugins = ["mypy_django_plugin.main"]
+strict = true
+exclude = ["migrations/"]
+
+[[tool.mypy.overrides]]
+module = "*.migrations.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "environ"
+ignore_missing_imports = true
+
+[tool.django-stubs]
+django_settings_module = "config.settings"

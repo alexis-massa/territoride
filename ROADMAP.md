@@ -23,41 +23,44 @@ usage data comes in, but don't let open questions block Phase 1.
 ### Phase 1 — Project Setup
 *~1 weekend*
 
-- `app/` monolith to start (backend + frontend together) — split later only
-  if it actually becomes a problem
-- Docker Compose: PostgreSQL + PostGIS
-- Backend: FastAPI, SQLAlchemy, Alembic
-- Frontend: **decision point** — NiceGUI is genuinely fast for a solo dev
-  and fine for auth screens, profile, leaderboards. For the map itself
-  (MapLibre GL JS, marker interaction, live updates) evaluate early whether
-  NiceGUI's HTML/JS embedding is enough, or whether the map view alone
-  should be a small standalone JS page the rest of the app embeds. Decide
-  this in the first weekend, not three months in — a map-heavy game is the
-  wrong place to fight the frontend framework.
-- Mapping: MapLibre GL JS
-- Background jobs: Redis + Dramatiq (needed as soon as webhooks exist —
-  don't process Strava webhook payloads synchronously in the request path)
-- Goal: app runs locally, empty map renders, DB connected
+- Single Django project (GeoDjango enabled), monolith — split later only if
+  it actually becomes a problem
+- `uv` for dependency/venv management, Python 3.13
+- `ruff` (lint + format) and `mypy` (+ `django-stubs`) from day one
+- Docker Compose: just two services, `app` (Django) and `db`
+  (PostGIS-flavored Postgres image) — no Redis, no worker
+- Frontend: Django templates + HTMX for standard pages; a single page with
+  vanilla MapLibre GL JS fed by a Django view returning GeoJSON, for the
+  map
+- Goal: app runs locally, empty map renders, DB connected, `ruff check` and
+  `mypy` both pass in CI (or a pre-commit hook) from the first commit
 
-### Phase 2 — Authentication
-*~1-2 days*
+### Phase 2 — Authentication (Strava-only)
+*~2-3 days*
 
-- Registration, login, sessions — keep it boring
-- `User(id, email, username, created_at)`
+- No local passwords/registration. "Connect with Strava" is the only login
+  — a custom `User` model keyed on `athlete_id`, session created on
+  successful OAuth callback
+- Store `access_token`, `refresh_token`, `athlete_id` (encrypted at rest),
+  handle token refresh
+- Since this isn't public, gate access with an allowlist/invite-code table
+  rather than building real signup flows
+- `User(id, athlete_id, username, allowed, created_at)`
 
-### Phase 3 — Strava Integration
+### Phase 3 — Strava Activity Import
 *~1 week*
 
-- OAuth ("Connect Strava"), store `access_token`, `refresh_token`,
-  `athlete_id` (encrypted at rest)
 - **Initial backfill**: on first connect, pull the athlete's existing
   activity history (paginated), not just future ones — otherwise new
   players start with an empty map and no reason to explore what they've
   already ridden
-- Webhook subscription → activity processor (queued via Dramatiq, not
-  inline)
+- Webhook subscription → activity processor. At friend-group volume this
+  can run **synchronously in the webhook view** — a geo query plus a few
+  writes is fast enough not to need a queue. Revisit only if it starts
+  blocking requests
 - `Activity(user_id, strava_activity_id, polyline, distance, elevation,
-  sport_type, date)`, polyline → PostGIS `LineString`
+  sport_type, date)`, polyline → PostGIS `LineString` via GeoDjango's
+  `LineStringField`
 - **Strava API compliance**: respect their rate limits (100 req/15min,
   1000/day by default), follow the Strava brand guidelines for the
   "Connect with Strava" button, and handle athlete deauthorization (delete
@@ -89,7 +92,8 @@ usage data comes in, but don't let open questions block Phase 1.
 
 - `capture_frequency`, `last_capture`, `value` on POIs
 - Daily recalculation job: frequently visited → value down, ignored →
-  value up
+  value up. Just a Django management command (`recalc_values`) fired by a
+  systemd timer or cron — no in-process scheduler needed
 - Milestone: the game starts rewarding exploration over repetition
 
 ### Phase 7 — Leaderboards & Scoring
@@ -131,7 +135,8 @@ before you know people want it.
 
 - Loop detection: is a route a valid closed loop? (thresholds in
   [GAME_DESIGN.md](GAME_DESIGN.md))
-- Polygon creation via `shapely` + PostGIS
+- Polygon creation via GEOS (through GeoDjango's geometry API, no separate
+  `shapely` dependency needed since GeoDjango already wraps GEOS)
 - `Territory(polygon, owner, created_at)`
 - Milestone: a player creates their first territory
 
@@ -169,12 +174,19 @@ before you know people want it.
 
 ## Technical Growth Path
 
-**MVP (Track A):** FastAPI, PostgreSQL + PostGIS, MapLibre GL JS, Strava
-API, Redis + Dramatiq (needed from Phase 3 onward for webhook processing,
-not deferred to beta)
+This project is explicitly not trying to scale past a friend group, so the
+stack optimizes for minimal ops surface over raw capability:
 
-**If it takes off:** caching, CDN, tile optimization/pre-rendering for the
-map layer
+**Stack:** Django + GeoDjango, PostgreSQL + PostGIS, Django templates +
+HTMX, vanilla MapLibre GL JS on the map page, Strava-only auth, `uv` +
+Python 3.13, `ruff` + `mypy` for code quality. Two containers
+(`app`, `db`) — no Redis, no task queue, no separate frontend build.
+Webhooks processed synchronously in the view; the daily value-decay job is
+a management command run by cron/systemd timer.
+
+**If it ever actually needs to scale:** that's the point to introduce
+Celery/Redis for background jobs, caching, a CDN, and tile
+optimization/pre-rendering for the map layer — none of it needed now.
 
 No microservices. Not until there's a concrete reason.
 

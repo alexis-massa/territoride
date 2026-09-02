@@ -1,4 +1,4 @@
-# Wanderclaim
+# TerritoRide
 
 A location-based strategy game built on real-world sports activities. Connect
 Strava, and every ride, run, or hike becomes a move on a living, competitive

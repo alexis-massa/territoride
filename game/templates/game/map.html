@@ -1,77 +1,22 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>TerritoRide</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+{% extends "base.html" %}
+
+{% block head %}
   <link href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" rel="stylesheet" />
   <style>
     html, body, #map { height: 100%; margin: 0; }
-    #topbar {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      z-index: 1;
-      display: flex;
-      justify-content: flex-end;
-      padding: 0.75rem 1rem;
-      pointer-events: none;
-    }
-    #topbar > * { pointer-events: auto; }
-    #connect-strava {
-      background: #fc4c02;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      padding: 0.6rem 1rem;
-      font-size: 0.95rem;
-      cursor: pointer;
-    }
-    #whoami {
-      background: white;
-      border-radius: 4px;
-      padding: 0.6rem 1rem;
-      font-size: 0.95rem;
-    }
   </style>
-</head>
-<body>
-  <div id="topbar">
-    {% if user.is_authenticated %}
-      <span id="whoami">{{ user.username }}</span>
-    {% else %}
-      <button id="connect-strava">Connect with Strava</button>
-    {% endif %}
-  </div>
+{% endblock %}
+
+{% block body %}
+  {% include "accounts/_topbar.html" %}
   <div id="map"></div>
   <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
   <script>
     new maplibregl.Map({
       container: "map",
-      style: "https://demotiles.maplibre.org/style.json",
-      center: [6.0, 45.5], // French Alps, placeholder
-      zoom: 7,
+      style: "https://tiles.openfreemap.org/styles/liberty",
+      center: [5.8, 45.4], // Rhone-Alpes
+      zoom: 8,
     });
-
-    var connectButton = document.getElementById("connect-strava");
-    if (connectButton) {
-      connectButton.addEventListener("click", function () {
-        window.open("{% url 'accounts:strava_authorize' %}", "strava_oauth", "width=600,height=700");
-
-        function handleMessage(event) {
-          if (event.origin !== window.location.origin) return;
-          if (!event.data || event.data.source !== "strava-oauth") return;
-          window.removeEventListener("message", handleMessage);
-          if (event.data.status === "success") {
-            window.location.reload();
-          } else {
-            alert(event.data.message || "Strava connection failed.");
-          }
-        }
-        window.addEventListener("message", handleMessage);
-      });
-    }
   </script>
-</body>
-</html>
+{% endblock %}

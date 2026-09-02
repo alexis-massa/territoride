@@ -4,24 +4,28 @@ Strava-only auth. There is no local signup/login — identity is a player's
 Strava `athlete_id`.
 
 **Files**
-- `models.py` — `User(AbstractUser)`: adds `athlete_id`, encrypted Strava
-  tokens, `strava_token_expires_at`. Players never get a usable password;
-  only a manually created superuser (`createsuperuser`) has one, for
-  `/admin/` access.
-- `crypto.py` — `EncryptedTextField`, a descriptor that transparently
-  encrypts/decrypts a backing `TextField` with Fernet
-  (`settings.TOKEN_ENCRYPTION_KEY`). Used for both Strava tokens.
+- `models.py` — `User(AbstractUser)`: adds `athlete_id` and Strava tokens,
+  exposed as `strava_access_token`/`strava_refresh_token` properties that
+  transparently encrypt/decrypt the backing `..._encrypted` fields. Players
+  never get a usable password; only a manually created superuser
+  (`createsuperuser`) has one, for `/admin/` access.
+- `crypto.py` — `encrypt_token`/`decrypt_token`, Fernet-based
+  (`settings.TOKEN_ENCRYPTION_KEY`).
 - `views.py` — the two-step OAuth handshake (`strava_authorize`,
   `strava_callback`).
-- `urls.py` — `/accounts/strava/authorize/`, `/accounts/strava/callback/`.
+- `urls.py` — `/accounts/strava/authorize/`, `/accounts/strava/callback/`,
+  `/accounts/logout/` (Django's built-in `LogoutView`).
+- `templates/accounts/_topbar.html` — included on every page; shows
+  "Connect with Strava" or the username + a log-out form depending on
+  `user.is_authenticated`.
 - `templates/accounts/oauth_complete.html` — the page the popup lands on
   after the callback; posts the result to the opener window and closes
   itself.
 
 **Flow**
 
-1. "Connect with Strava" button (`game/templates/game/map.html`) opens a
-   popup on `strava_authorize`.
+1. "Connect with Strava" button (in the shared topbar) opens a popup on
+   `strava_authorize`.
 2. `strava_authorize` redirects the popup to Strava's real login page
    (CSRF `state` stored in the session).
 3. After the user logs in on Strava, it redirects back to

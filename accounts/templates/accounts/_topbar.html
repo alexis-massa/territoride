@@ -1,0 +1,64 @@
+<div id="topbar">
+  {% if user.is_authenticated %}
+    <span id="whoami">{{ user.username }}</span>
+    <form method="post" action="{% url 'accounts:logout' %}">
+      {% csrf_token %}
+      <button type="submit" id="logout">Log out</button>
+    </form>
+  {% else %}
+    <button id="connect-strava">Connect with Strava</button>
+  {% endif %}
+</div>
+<style>
+  #topbar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    padding: 0.75rem 1rem;
+    pointer-events: none;
+  }
+  #topbar > * { pointer-events: auto; }
+  #connect-strava {
+    background: #fc4c02;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.6rem 1rem;
+    font-size: 0.95rem;
+    cursor: pointer;
+  }
+  #whoami, #logout {
+    background: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.6rem 1rem;
+    font-size: 0.95rem;
+  }
+  #logout { cursor: pointer; }
+</style>
+<script>
+  var connectButton = document.getElementById("connect-strava");
+  if (connectButton) {
+    connectButton.addEventListener("click", function () {
+      window.open("{% url 'accounts:strava_authorize' %}", "strava_oauth", "width=600,height=700");
+
+      function handleMessage(event) {
+        if (event.origin !== window.location.origin) return;
+        if (!event.data || event.data.source !== "strava-oauth") return;
+        window.removeEventListener("message", handleMessage);
+        if (event.data.status === "success") {
+          window.location.reload();
+        } else {
+          alert(event.data.message || "Strava connection failed.");
+        }
+      }
+      window.addEventListener("message", handleMessage);
+    });
+  }
+</script>

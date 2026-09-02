@@ -15,11 +15,11 @@
       };
       if (window.opener) {
         window.opener.postMessage(payload, window.location.origin);
-        // deferred: an immediate close() can race postMessage delivery in some browsers
-        setTimeout(function () {
-          window.close();
-        }, 0);
       }
+      // deferred: an immediate close() can race postMessage delivery in some browsers
+      setTimeout(function () {
+        window.close();
+      }, 0);
     })();
   </script>
 </body>

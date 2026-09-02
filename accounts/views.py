@@ -74,13 +74,6 @@ def strava_callback(request: HttpRequest) -> HttpResponse:
     user.strava_token_expires_at = datetime.fromtimestamp(payload["expires_at"], tz=UTC)
     user.save()
 
-    if not user.is_allowed:
-        return _popup_response(
-            request,
-            status="pending",
-            message="Your account is connected but awaiting approval. Ask an admin to let you in.",
-        )
-
     login(request, user, backend="django.contrib.auth.backends.ModelBackend")
     return _popup_response(request, status="success", message="Connected!")
 

@@ -9,11 +9,10 @@ class TerritoRideUserAdmin(UserAdmin):  # type: ignore[type-arg]
     list_display = (
         "username",
         "athlete_id",
-        "is_allowed",
         "is_staff",
         "date_joined",
     )
-    list_filter = ("is_staff", "is_superuser", "is_active", "is_allowed", "groups")
+    list_filter = ("is_staff", "is_superuser", "is_active", "groups")
     fieldsets = (
         (None, {"fields": ("username", "password")}),
         ("Personal info", {"fields": ("first_name", "last_name", "email")}),
@@ -35,7 +34,6 @@ class TerritoRideUserAdmin(UserAdmin):  # type: ignore[type-arg]
             {
                 "fields": (
                     "athlete_id",
-                    "is_allowed",
                     "strava_token_expires_at",
                 )
             },

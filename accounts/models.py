@@ -9,10 +9,6 @@ class User(AbstractUser):
     only an admin-created superuser (for Django admin access) has one."""
 
     athlete_id = models.BigIntegerField(unique=True, null=True, blank=True)
-    is_allowed = models.BooleanField(
-        default=False,
-        help_text="Gates access for this friends-only game. Flip on to let the player in.",
-    )
 
     strava_access_token_encrypted = models.TextField(blank=True, default="")
     strava_refresh_token_encrypted = models.TextField(blank=True, default="")

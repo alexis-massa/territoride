@@ -71,19 +71,30 @@
   var connectButton = document.getElementById("connect-strava");
   if (connectButton) {
     connectButton.addEventListener("click", function () {
-      window.open("{% url 'accounts:strava_authorize' %}", "strava_oauth", "width=600,height=700");
+      var popup = window.open(
+        "{% url 'accounts:strava_authorize' %}",
+        "strava_oauth",
+        "width=600,height=700"
+      );
 
       function handleMessage(event) {
         if (event.origin !== window.location.origin) return;
         if (!event.data || event.data.source !== "strava-oauth") return;
         window.removeEventListener("message", handleMessage);
-        if (event.data.status === "success") {
-          window.location.reload();
-        } else {
+        if (event.data.status !== "success") {
           alert(event.data.message || "Strava connection failed.");
         }
       }
       window.addEventListener("message", handleMessage);
+
+      // Reload once the popup closes, regardless of whether postMessage
+      // arrived - covers browsers where it can be lost or delayed.
+      var poll = setInterval(function () {
+        if (popup.closed) {
+          clearInterval(poll);
+          window.location.reload();
+        }
+      }, 500);
     });
   }
 </script>

@@ -1,5 +1,3 @@
-"""Django settings for the TerritoRide project."""
-
 from pathlib import Path
 
 import environ
@@ -24,8 +22,11 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.gis",
+    "accounts",
     "game",
 ]
+
+AUTH_USER_MODEL = "accounts.User"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -57,9 +58,7 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 
-# Database
-# PostGIS-backed Postgres, configured entirely through env vars — see .env.example
-
+# PostGIS-backed Postgres — see .env.example for the connection env vars
 DATABASES = {
     "default": {
         "ENGINE": "django.contrib.gis.db.backends.postgis",
@@ -96,3 +95,12 @@ USE_TZ = True
 STATIC_URL = "static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
+# Strava OAuth: https://developers.strava.com/docs/authentication/
+STRAVA_CLIENT_ID = env("STRAVA_CLIENT_ID", default="")
+STRAVA_CLIENT_SECRET = env("STRAVA_CLIENT_SECRET", default="")
+
+# Encrypts stored Strava tokens (see accounts/crypto.py). Rotating this key
+# invalidates every stored token — players would need to reconnect Strava.
+TOKEN_ENCRYPTION_KEY = env("TOKEN_ENCRYPTION_KEY")

@@ -39,7 +39,7 @@
 <body>
   <div id="topbar">
     {% if user.is_authenticated %}
-      <span id="whoami">{{ user.first_name|default:user.username }}</span>
+      <span id="whoami">{{ user.username }}</span>
     {% else %}
       <button id="connect-strava">Connect with Strava</button>
     {% endif %}

@@ -5,8 +5,7 @@ from .crypto import EncryptedTextField
 
 
 class User(AbstractUser):
-    """Strava-first account: regular players never set a password, only an
-    admin-created superuser (for Django admin access) does."""
+    """Strava-linked player account; regular players have no local password."""
 
     athlete_id = models.BigIntegerField(unique=True, null=True, blank=True)
 
@@ -18,4 +17,9 @@ class User(AbstractUser):
     strava_refresh_token = EncryptedTextField("strava_refresh_token_encrypted")
 
     def __str__(self) -> str:
+        """One-line label for admin/debug output.
+
+        Returns:
+            The username, or "athlete:<id>" if unset.
+        """
         return self.username or f"athlete:{self.athlete_id}"

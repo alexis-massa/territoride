@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 import requests
 from django.conf import settings
 from django.contrib.auth import login
+from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
 from django.shortcuts import render
 from django.urls import reverse
@@ -114,6 +115,19 @@ def strava_callback(request: HttpRequest) -> HttpResponse:
 
     login(request, user, backend="django.contrib.auth.backends.ModelBackend")
     return _popup_response(request, status="success", message="Connected!")
+
+
+@login_required
+def profile_view(request: HttpRequest) -> HttpResponse:
+    """Render the current player's profile page.
+
+    Args:
+        request: The incoming request; must be authenticated.
+
+    Returns:
+        The rendered profile page.
+    """
+    return render(request, "accounts/profile.html")
 
 
 def _popup_response(request: HttpRequest, *, status: str, message: str) -> HttpResponse:

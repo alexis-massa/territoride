@@ -9,4 +9,5 @@ urlpatterns = [
     path("strava/authorize/", views.strava_authorize, name="strava_authorize"),
     path("strava/callback/", views.strava_callback, name="strava_callback"),
     path("logout/", LogoutView.as_view(), name="logout"),
+    path("profile/", views.profile_view, name="profile"),
 ]

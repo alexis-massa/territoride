@@ -1,5 +1,6 @@
 import secrets
 from datetime import UTC, datetime
+from typing import TypedDict
 from urllib.parse import urlencode
 
 import requests
@@ -14,6 +15,29 @@ from .models import User
 STRAVA_AUTHORIZE_URL = "https://www.strava.com/oauth/authorize"
 STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token"
 
+OAUTH_STATE_SESSION_KEY = "strava_oauth_state"
+ERROR_PARAM = "error"
+STATE_PARAM = "state"
+CODE_PARAM = "code"
+
+
+class StravaAthlete(TypedDict):
+    """Shape of the athlete summary Strava embeds in a token response."""
+
+    id: int
+    username: str | None
+    firstname: str | None
+    lastname: str | None
+
+
+class StravaTokenResponse(TypedDict):
+    """Shape of Strava's POST /oauth/token response."""
+
+    access_token: str
+    refresh_token: str
+    expires_at: int
+    athlete: StravaAthlete
+
 
 def strava_authorize(request: HttpRequest) -> HttpResponse:
     """Start the Strava OAuth handshake.
@@ -25,7 +49,7 @@ def strava_authorize(request: HttpRequest) -> HttpResponse:
         A redirect to Strava's OAuth authorize page.
     """
     state = secrets.token_urlsafe(32)
-    request.session["strava_oauth_state"] = state
+    request.session[OAUTH_STATE_SESSION_KEY] = state
 
     redirect_uri = request.build_absolute_uri(reverse("accounts:strava_callback"))
     params = {
@@ -48,17 +72,15 @@ def strava_callback(request: HttpRequest) -> HttpResponse:
     Returns:
         The popup-closing response, reporting success or failure to the opener.
     """
-    error = request.GET.get("error")
-    if error:
-        return _popup_response(request, status="error", message=f"Strava denied access: {error}")
+    if ERROR_PARAM in request.GET:
+        message = f"Strava denied access: {request.GET[ERROR_PARAM]}"
+        return _popup_response(request, status="error", message=message)
 
-    state = request.GET.get("state")
-    expected_state = request.session.pop("strava_oauth_state", None)
-    if not state or state != expected_state:
+    expected_state = request.session.pop(OAUTH_STATE_SESSION_KEY, None)
+    if STATE_PARAM not in request.GET or request.GET[STATE_PARAM] != expected_state:
         return HttpResponseBadRequest("Invalid OAuth state")
 
-    code = request.GET.get("code")
-    if not code:
+    if CODE_PARAM not in request.GET:
         return _popup_response(request, status="error", message="Missing authorization code")
 
     token_response = requests.post(
@@ -66,7 +88,7 @@ def strava_callback(request: HttpRequest) -> HttpResponse:
         data={
             "client_id": settings.STRAVA_CLIENT_ID,
             "client_secret": settings.STRAVA_CLIENT_SECRET,
-            "code": code,
+            "code": request.GET[CODE_PARAM],
             "grant_type": "authorization_code",
         },
         timeout=10,
@@ -74,15 +96,15 @@ def strava_callback(request: HttpRequest) -> HttpResponse:
     if not token_response.ok:
         return _popup_response(request, status="error", message="Could not reach Strava")
 
-    payload = token_response.json()
+    payload: StravaTokenResponse = token_response.json()
     athlete = payload["athlete"]
 
     user, _created = User.objects.get_or_create(
         athlete_id=athlete["id"],
-        defaults={"username": athlete.get("username") or f"athlete_{athlete['id']}"},
+        defaults={"username": athlete["username"] or f"athlete_{athlete['id']}"},
     )
-    user.first_name = athlete.get("firstname") or ""
-    user.last_name = athlete.get("lastname") or ""
+    user.first_name = athlete["firstname"] or ""
+    user.last_name = athlete["lastname"] or ""
     if not user.has_usable_password():
         user.set_unusable_password()
     user.strava_access_token = payload["access_token"]

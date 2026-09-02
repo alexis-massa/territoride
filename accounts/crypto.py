@@ -11,38 +11,25 @@ def _fernet() -> Fernet:
     return Fernet(settings.TOKEN_ENCRYPTION_KEY)
 
 
-class EncryptedTextField:
-    """Descriptor that transparently encrypts/decrypts a backing TextField."""
+def encrypt_token(value: str) -> str:
+    """Encrypt a plaintext token for storage.
 
-    def __init__(self, backing_field: str) -> None:
-        """Bind this descriptor to the model field storing the ciphertext.
+    Args:
+        value: The plaintext token.
 
-        Args:
-            backing_field: Name of the TextField holding the encrypted value.
-        """
-        self.backing_field = backing_field
+    Returns:
+        The Fernet-encrypted ciphertext, or "" if value is empty.
+    """
+    return _fernet().encrypt(value.encode()).decode() if value else ""
 
-    def __get__(self, instance: object, owner: type) -> str:
-        """Decrypt and return the stored value.
 
-        Args:
-            instance: The model instance being read, or None if accessed on the class.
-            owner: The owning class.
+def decrypt_token(value: str) -> str:
+    """Decrypt a stored token.
 
-        Returns:
-            The decrypted plaintext, or "" if unset or accessed on the class.
-        """
-        if instance is None:
-            return ""
-        raw: str = getattr(instance, self.backing_field)
-        return _fernet().decrypt(raw.encode()).decode() if raw else ""
+    Args:
+        value: The Fernet-encrypted ciphertext.
 
-    def __set__(self, instance: object, value: str) -> None:
-        """Encrypt value and store it on the backing field.
-
-        Args:
-            instance: The model instance being written to.
-            value: The plaintext value to encrypt and store.
-        """
-        encrypted = _fernet().encrypt(value.encode()).decode() if value else ""
-        setattr(instance, self.backing_field, encrypted)
+    Returns:
+        The decrypted plaintext, or "" if value is empty.
+    """
+    return _fernet().decrypt(value.encode()).decode() if value else ""

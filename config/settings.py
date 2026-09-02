@@ -24,8 +24,11 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.gis",
+    "accounts",
     "game",
 ]
+
+AUTH_USER_MODEL = "accounts.User"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -96,3 +99,15 @@ USE_TZ = True
 STATIC_URL = "static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
+# Strava OAuth
+# https://developers.strava.com/docs/authentication/
+
+STRAVA_CLIENT_ID = env("STRAVA_CLIENT_ID", default="")
+STRAVA_CLIENT_SECRET = env("STRAVA_CLIENT_SECRET", default="")
+
+# Fernet key (generate with Fernet.generate_key()) used to encrypt Strava
+# tokens at rest. Losing/rotating this invalidates every stored token —
+# players would need to reconnect Strava.
+TOKEN_ENCRYPTION_KEY = env("TOKEN_ENCRYPTION_KEY")

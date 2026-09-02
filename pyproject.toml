@@ -4,9 +4,11 @@ version = "0.1.0"
 description = "A location-based strategy game built on real-world Strava activities."
 requires-python = ">=3.13"
 dependencies = [
+    "cryptography>=50.0.1",
     "django>=5.1",
     "django-environ>=0.14.0",
     "psycopg[binary]>=3.3.5",
+    "requests>=2.34.2",
 ]
 
 [dependency-groups]
@@ -36,7 +38,10 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["config", "game"]
+known-first-party = ["config", "game", "accounts"]
+
+[tool.ruff.lint.per-file-ignores]
+"*/migrations/*" = ["E501"]
 
 [tool.mypy]
 python_version = "3.13"

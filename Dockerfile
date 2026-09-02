@@ -9,12 +9,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=ghcr.io/astral-sh/uv:0.6.14 /uv /uvx /usr/local/bin/
 
-WORKDIR /app
+# Match the host dev user's UID/GID so files created in the bind-mounted
+# project dir (.venv, migrations, etc.) aren't root-owned on the host.
+ARG UID=1000
+ARG GID=1000
+RUN groupadd -g ${GID} app && useradd -m -u ${UID} -g ${GID} app
 
-COPY pyproject.toml uv.lock ./
+WORKDIR /app
+RUN chown app:app /app
+USER app
+
+COPY --chown=app:app pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-install-project
 
-COPY . .
+COPY --chown=app:app . .
 RUN uv sync --frozen
 
 EXPOSE 8000

@@ -16,6 +16,14 @@ STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token"
 
 
 def strava_authorize(request: HttpRequest) -> HttpResponse:
+    """Start the Strava OAuth handshake.
+
+    Args:
+        request: The incoming request; used for the session and callback URL.
+
+    Returns:
+        A redirect to Strava's OAuth authorize page.
+    """
     state = secrets.token_urlsafe(32)
     request.session["strava_oauth_state"] = state
 
@@ -32,6 +40,14 @@ def strava_authorize(request: HttpRequest) -> HttpResponse:
 
 
 def strava_callback(request: HttpRequest) -> HttpResponse:
+    """Handle Strava's OAuth redirect: exchange the code and log the player in.
+
+    Args:
+        request: The callback request, carrying `code` and `state` query params.
+
+    Returns:
+        The popup-closing response, reporting success or failure to the opener.
+    """
     error = request.GET.get("error")
     if error:
         return _popup_response(request, status="error", message=f"Strava denied access: {error}")
@@ -79,4 +95,14 @@ def strava_callback(request: HttpRequest) -> HttpResponse:
 
 
 def _popup_response(request: HttpRequest, *, status: str, message: str) -> HttpResponse:
+    """Render the page the OAuth popup closes itself from.
+
+    Args:
+        request: The current request.
+        status: "success" or "error"; read by the opener window's JS.
+        message: Text shown in the popup and relayed to the opener.
+
+    Returns:
+        The rendered oauth_complete.html response.
+    """
     return render(request, "accounts/oauth_complete.html", {"status": status, "message": message})

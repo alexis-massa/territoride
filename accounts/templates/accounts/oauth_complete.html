@@ -15,7 +15,11 @@
       };
       if (window.opener) {
         window.opener.postMessage(payload, window.location.origin);
-        window.close();
+        // A same-tick close can race the message delivery in some browsers;
+        // deferring to the next tick guarantees the opener has it first.
+        setTimeout(function () {
+          window.close();
+        }, 0);
       }
     })();
   </script>

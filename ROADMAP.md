@@ -43,9 +43,10 @@ usage data comes in, but don't let open questions block Phase 1.
   successful OAuth callback
 - Store `access_token`, `refresh_token`, `athlete_id` (encrypted at rest),
   handle token refresh
-- Since this isn't public, gate access with an allowlist/invite-code table
-  rather than building real signup flows
-- `User(id, athlete_id, username, allowed, created_at)`
+- No access gate — anyone who completes Strava OAuth is logged in
+  immediately, no admin approval step. The game isn't publicly advertised,
+  so the URL itself is the only barrier; revisit if that stops being enough
+- `User(id, athlete_id, username, created_at)`
 
 ### Phase 3 — Strava Activity Import
 *~1 week*

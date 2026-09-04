@@ -1,12 +1,16 @@
 import h3
+from django.contrib.gis.db.models.functions import Distance
+from django.contrib.gis.measure import D
 
 from .grid import RESOLUTION, cells_in_loop
-from .models import Activity, TerritoryCell
+from .models import POI, Activity, TerritoryCell
 
-# Strava trims ~200m off each end of a public activity to hide home
-# addresses, so a real loop can show up to ~400m "open" - 500m covers
-# that plus GPS noise.
+# Strava trims ~200m at start/end, so a loop can show up to ~400m "open"
+# 500m covers GPS noise.
 LOOP_CLOSE_TOLERANCE_M = 500
+
+# Cover GPS noise
+POI_CAPTURE_RADIUS_M = 100
 
 
 def is_loop(points: list[tuple[float, float]]) -> bool:
@@ -70,3 +74,21 @@ def capture_territory(activity: Activity) -> int:
             },
         )
     return len(cells)
+
+
+def capture_pois(activity: Activity) -> int:
+    """Claim every POI an activity's track passes within range of.
+
+    Loops and non-loops are treated the same here - a POI is claimed by
+    proximity to the track, never by enclosure.
+
+    Args:
+        activity: The activity whose track determines what it captures.
+
+    Returns:
+        The number of POIs captured.
+    """
+    nearby = POI.objects.annotate(distance=Distance("location", activity.track)).filter(
+        distance__lte=D(m=POI_CAPTURE_RADIUS_M)  # type: ignore[misc]  # django-stubs wants a float here, but a Distance object is correct
+    )
+    return nearby.update(owner=activity.user, claimed_by=activity, claimed_at=activity.recorded_at)

@@ -6,7 +6,7 @@ from django.http import HttpRequest, HttpResponse, HttpResponseBadRequest, JsonR
 from django.shortcuts import render
 
 from .grid import cell_boundary, cells_in_bbox
-from .models import Activity, TerritoryCell
+from .models import POI, Activity, TerritoryCell
 
 BBOX_PARAM = "bbox"
 PLAYER_COLORS = ["#2ecc71", "#e67e22", "#3498db", "#9b59b6", "#e74c3c", "#f1c40f"]
@@ -117,4 +117,38 @@ def routes_geojson_view(request: HttpRequest) -> HttpResponse:
         }
         for activity in activities
     ]
+    return JsonResponse({"type": "FeatureCollection", "features": features})
+
+
+def _poi_feature(poi: POI) -> dict[str, Any]:
+    """Build one POI GeoJSON feature.
+
+    Args:
+        poi: The point of interest to serialize.
+
+    Returns:
+        A GeoJSON Feature dict.
+    """
+    return {
+        "type": "Feature",
+        "geometry": json.loads(poi.location.geojson),
+        "properties": {
+            "name": poi.name,
+            "altitude_m": poi.altitude_m,
+            "owner": poi.owner.username if poi.owner else None,
+            "color": player_color(poi.owner.username) if poi.owner else None,
+        },
+    }
+
+
+def pois_geojson_view(request: HttpRequest) -> HttpResponse:
+    """Mountain pass POIs, as GeoJSON.
+
+    Args:
+        request: The incoming request.
+
+    Returns:
+        A GeoJSON FeatureCollection of POIs.
+    """
+    features = [_poi_feature(poi) for poi in POI.objects.select_related("owner")]
     return JsonResponse({"type": "FeatureCollection", "features": features})

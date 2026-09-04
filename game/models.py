@@ -22,6 +22,29 @@ class Activity(models.Model):
         return self.name
 
 
+class POI(models.Model):
+    """A capturable point of interest - mountain passes only for now."""
+
+    name = models.CharField(max_length=255)
+    location = gis_models.PointField(srid=4326)
+    altitude_m = models.IntegerField(null=True, blank=True)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="claimed_pois"
+    )
+    claimed_by = models.ForeignKey(
+        Activity, on_delete=models.SET_NULL, null=True, related_name="claimed_pois"
+    )
+    claimed_at = models.DateTimeField(null=True)
+
+    def __str__(self) -> str:
+        """One-line label for admin/debug output.
+
+        Returns:
+            The POI's name.
+        """
+        return self.name
+
+
 class TerritoryCell(models.Model):
     """An H3 grid cell's current ownership."""
 

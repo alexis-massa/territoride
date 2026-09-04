@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block head %}
   <link href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" rel="stylesheet" />
@@ -30,6 +31,25 @@
   <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
   <script>
     var EMPTY_FC = { type: "FeatureCollection", features: [] };
+
+    // map.loadImage() can't reliably decode SVG - it's built for raster
+    // images. Rendering through a <img> + <canvas> instead uses the
+    // browser's normal SVG rendering, which is universally supported.
+    function loadIconAsImageData(url) {
+      return new Promise(function (resolve, reject) {
+        var img = new Image();
+        img.onload = function () {
+          var canvas = document.createElement("canvas");
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          var ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0);
+          resolve(ctx.getImageData(0, 0, canvas.width, canvas.height));
+        };
+        img.onerror = reject;
+        img.src = url;
+      });
+    }
 
     var map = new maplibregl.Map({
       container: "map",
@@ -84,6 +104,81 @@
         type: "line",
         source: "routes",
         paint: { "line-color": ["get", "color"], "line-width": 2 },
+      });
+
+      loadIconAsImageData("{% static 'game/icons/pass.svg' %}").then(function (imageData) {
+        map.addImage("pass", imageData);
+        map.addSource("pois", { type: "geojson", data: EMPTY_FC });
+        map.addLayer({
+          id: "pois-circle",
+          type: "circle",
+          source: "pois",
+          paint: {
+            "circle-radius": ["interpolate", ["linear"], ["zoom"], 6, 2, 10, 5, 14, 13],
+            "circle-color": ["case", ["==", ["get", "owner"], null], "#000000", ["get", "color"]],
+            "circle-stroke-width": 2,
+            "circle-stroke-color": "#ffffff",
+          },
+        });
+        map.addLayer({
+          id: "pois-icon",
+          type: "symbol",
+          source: "pois",
+          layout: {
+            "icon-image": "pass",
+            "icon-size": ["interpolate", ["linear"], ["zoom"], 6, 0.15, 10, 0.4, 14, 1],
+            "icon-allow-overlap": true,
+          },
+        });
+
+        var poiPopup = new maplibregl.Popup({
+          closeButton: false,
+          closeOnClick: false,
+          className: "owner-tooltip",
+          offset: 10,
+        });
+        function showPoiPopup(e) {
+          map.getCanvas().style.cursor = "pointer";
+          var props = e.features[0].properties;
+          var html = props.name;
+          if (props.altitude_m) html += " · " + props.altitude_m + "m";
+          html =
+            '<span class="owner-tooltip-dot" style="background:' +
+            (props.owner ? props.color : "#000000") +
+            '"></span>' +
+            html +
+            " · " +
+            (props.owner || "unclaimed");
+          poiPopup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+        }
+        function hidePoiPopup() {
+          map.getCanvas().style.cursor = "";
+          poiPopup.remove();
+        }
+        ["pois-circle", "pois-icon"].forEach(function (layerId) {
+          map.on("mousemove", layerId, showPoiPopup);
+          map.on("mouseleave", layerId, hidePoiPopup);
+        });
+
+        function loadPOIs() {
+          fetch("{% url 'pois_geojson' %}")
+            .then(function (resp) {
+              return resp.json();
+            })
+            .then(function (data) {
+              map.getSource("pois").setData(data);
+            });
+        }
+
+        loadPOIs();
+
+        document.getElementById("toggle-pois").addEventListener("change", function (e) {
+          if (e.target.checked) {
+            loadPOIs();
+          } else {
+            map.getSource("pois").setData(EMPTY_FC);
+          }
+        });
       });
 
       function updateGrid() {

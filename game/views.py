@@ -1,5 +1,4 @@
 import json
-import zlib
 from typing import Any
 
 from django.http import HttpRequest, HttpResponse, HttpResponseBadRequest, JsonResponse
@@ -7,9 +6,9 @@ from django.shortcuts import render
 
 from .grid import cell_boundary, cells_in_bbox
 from .models import POI, Activity, TerritoryCell
+from .scoring import leaderboard, player_color
 
 BBOX_PARAM = "bbox"
-PLAYER_COLORS = ["#2ecc71", "#e67e22", "#3498db", "#9b59b6", "#e74c3c", "#f1c40f"]
 
 
 def map_view(request: HttpRequest) -> HttpResponse:
@@ -50,18 +49,6 @@ def grid_geojson_view(request: HttpRequest) -> HttpResponse:
         for cell in cells_in_bbox(min_lon, min_lat, max_lon, max_lat)
     ]
     return JsonResponse({"type": "FeatureCollection", "features": features})
-
-
-def player_color(username: str) -> str:
-    """Deterministic display color for a player.
-
-    Args:
-        username: The player's username.
-
-    Returns:
-        A hex color, stable across requests and process restarts.
-    """
-    return PLAYER_COLORS[zlib.crc32(username.encode()) % len(PLAYER_COLORS)]
 
 
 def _territory_feature(cell: TerritoryCell) -> dict[str, Any]:
@@ -152,3 +139,15 @@ def pois_geojson_view(request: HttpRequest) -> HttpResponse:
     """
     features = [_poi_feature(poi) for poi in POI.objects.select_related("owner")]
     return JsonResponse({"type": "FeatureCollection", "features": features})
+
+
+def leaderboard_view(request: HttpRequest) -> HttpResponse:
+    """Render the player rankings page.
+
+    Args:
+        request: The incoming request.
+
+    Returns:
+        The rendered leaderboard page.
+    """
+    return render(request, "game/leaderboard.html", {"rows": leaderboard()})

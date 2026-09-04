@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Leaderboard — TerritoRide{% endblock %}
+
+{% block head %}
+  <style>
+    .rank-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.9rem 0;
+      border-bottom: 1px solid #eee;
+    }
+    .rank-row:last-child { border-bottom: none; }
+    .rank-number {
+      width: 2rem;
+      text-align: center;
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: #999;
+      flex-shrink: 0;
+    }
+    .rank-row.top1 .rank-number { color: #d4a017; }
+    .rank-row.top2 .rank-number { color: #9aa0a6; }
+    .rank-row.top3 .rank-number { color: #b06a34; }
+    .rank-main { flex-grow: 1; min-width: 0; }
+    .rank-name {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 600;
+    }
+    .rank-stats {
+      font-size: 0.8rem;
+      color: #777;
+      margin-top: 0.15rem;
+    }
+    .rank-total {
+      font-size: 1.3rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+  </style>
+{% endblock %}
+
+{% block body %}
+  <div class="page">
+    <a href="{% url 'map' %}" class="back-link">&larr; Back to map</a>
+    <h1>Leaderboard</h1>
+
+    <div class="card">
+      {% if rows %}
+        {% for row in rows %}
+          <div class="rank-row {% if forloop.counter == 1 %}top1{% elif forloop.counter == 2 %}top2{% elif forloop.counter == 3 %}top3{% endif %}">
+            <div class="rank-number">{{ forloop.counter }}</div>
+            <div class="rank-main">
+              <div class="rank-name">
+                <span class="player-dot" style="background: {{ row.color }}"></span>
+                {{ row.username }}
+              </div>
+              <div class="score-bar">
+                <div class="score-bar-territory" style="width: {{ row.territory_pct }}%"></div>
+                <div class="score-bar-poi" style="width: {{ row.poi_pct }}%"></div>
+              </div>
+              <div class="rank-stats">
+                {{ row.cell_count }} cell{{ row.cell_count|pluralize }} · {{ row.poi_count }} pass{{ row.poi_count|pluralize:"es" }}
+              </div>
+            </div>
+            <div class="rank-total">{{ row.total }}</div>
+          </div>
+        {% endfor %}
+      {% else %}
+        <p>No one has captured anything yet.</p>
+      {% endif %}
+    </div>
+
+    <div class="legend">
+      <div class="legend-item"><span class="legend-swatch" style="background:#3b6fd6"></span> Territory</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:#7a5230"></span> Passes</div>
+    </div>
+  </div>
+{% endblock %}

@@ -4,6 +4,22 @@
   <link href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" rel="stylesheet" />
   <style>
     html, body, #map { height: 100%; margin: 0; }
+    .owner-tooltip .maplibregl-popup-tip { display: none; }
+    .owner-tooltip .maplibregl-popup-content {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.65rem;
+      border-radius: 999px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+      font-size: 0.85rem;
+    }
+    .owner-tooltip-dot {
+      width: 0.6rem;
+      height: 0.6rem;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
   </style>
 {% endblock %}
 
@@ -13,6 +29,8 @@
   <div id="map"></div>
   <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
   <script>
+    var EMPTY_FC = { type: "FeatureCollection", features: [] };
+
     var map = new maplibregl.Map({
       container: "map",
       style: "https://tiles.openfreemap.org/styles/liberty",
@@ -23,12 +41,49 @@
     var gridVisible = true;
 
     map.on("load", function () {
-      map.addSource("grid", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addSource("grid", { type: "geojson", data: EMPTY_FC });
       map.addLayer({
         id: "grid-fill",
         type: "fill",
         source: "grid",
         paint: { "fill-color": "#3388ff", "fill-opacity": 0.05, "fill-outline-color": "#000000" },
+      });
+
+      map.addSource("territory", { type: "geojson", data: EMPTY_FC });
+      map.addLayer({
+        id: "territory-fill",
+        type: "fill",
+        source: "territory",
+        paint: { "fill-color": ["get", "color"], "fill-opacity": 0.35, "fill-outline-color": "#000000" },
+      });
+
+      var ownerPopup = new maplibregl.Popup({
+        closeButton: false,
+        closeOnClick: false,
+        className: "owner-tooltip",
+        offset: 10,
+      });
+      map.on("mousemove", "territory-fill", function (e) {
+        map.getCanvas().style.cursor = "pointer";
+        var props = e.features[0].properties;
+        var html =
+          '<span class="owner-tooltip-dot" style="background:' +
+          props.color +
+          '"></span>' +
+          props.owner;
+        ownerPopup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+      });
+      map.on("mouseleave", "territory-fill", function () {
+        map.getCanvas().style.cursor = "";
+        ownerPopup.remove();
+      });
+
+      map.addSource("routes", { type: "geojson", data: EMPTY_FC });
+      map.addLayer({
+        id: "routes-line",
+        type: "line",
+        source: "routes",
+        paint: { "line-color": ["get", "color"], "line-width": 2 },
       });
 
       function updateGrid() {
@@ -49,15 +104,53 @@
           });
       }
 
+      function loadTerritory() {
+        fetch("{% url 'territory_geojson' %}")
+          .then(function (resp) {
+            return resp.json();
+          })
+          .then(function (data) {
+            map.getSource("territory").setData(data);
+          });
+      }
+
+      function loadRoutes() {
+        fetch("{% url 'routes_geojson' %}")
+          .then(function (resp) {
+            return resp.json();
+          })
+          .then(function (data) {
+            map.getSource("routes").setData(data);
+          });
+      }
+
       map.on("moveend", updateGrid);
       updateGrid();
+      loadTerritory();
+      loadRoutes();
 
       document.getElementById("toggle-grid").addEventListener("change", function (e) {
         gridVisible = e.target.checked;
         if (gridVisible) {
           updateGrid();
         } else {
-          map.getSource("grid").setData({ type: "FeatureCollection", features: [] });
+          map.getSource("grid").setData(EMPTY_FC);
+        }
+      });
+
+      document.getElementById("toggle-territory").addEventListener("change", function (e) {
+        if (e.target.checked) {
+          loadTerritory();
+        } else {
+          map.getSource("territory").setData(EMPTY_FC);
+        }
+      });
+
+      document.getElementById("toggle-routes").addEventListener("change", function (e) {
+        if (e.target.checked) {
+          loadRoutes();
+        } else {
+          map.getSource("routes").setData(EMPTY_FC);
         }
       });
     });

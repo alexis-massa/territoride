@@ -6,12 +6,12 @@ from django.contrib.gis.geos import LineString
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 
 from accounts.models import User
-from game.capture import capture_territory
+from game.capture import capture_pois, capture_territory
 from game.models import Activity
 
 
 class Command(BaseCommand):
-    help = "Load a GPX file as an Activity for a player and capture its territory"
+    help = "Load a GPX file as an Activity for a player and capture its territory and POIs"
 
     def add_arguments(self, parser: CommandParser) -> None:
         """Declare the command's positional arguments."""
@@ -19,7 +19,7 @@ class Command(BaseCommand):
         parser.add_argument("username")
 
     def handle(self, *args: Any, **options: Any) -> None:
-        """Parse the GPX file, store it as an Activity, and capture its territory.
+        """Parse the GPX file, store it as an Activity, and capture territory and POIs.
 
         Args:
             *args: Unused positional arguments from Django's command framework.
@@ -43,5 +43,6 @@ class Command(BaseCommand):
             track=LineString([(p.longitude, p.latitude) for p in points], srid=4326),
             recorded_at=points[0].time or datetime.now(UTC),
         )
-        captured = capture_territory(activity)
-        self.stdout.write(f"Loaded {activity.name!r}: captured {captured} cells")
+        cells = capture_territory(activity)
+        pois = capture_pois(activity)
+        self.stdout.write(f"Loaded {activity.name!r}: captured {cells} cells, {pois} POIs")

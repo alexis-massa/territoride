@@ -34,8 +34,8 @@ require a redeploy.
 
 | Question | Default |
 |---|---|
-| Capture radius | **50m** default, overridable per POI type (e.g. 30m for a summit register, 75m for a monument you'd view from a road) |
-| Capture method | `ST_DWithin(poi.location, activity.linestring, radius)` — proximity to the track, not just start/end point |
+| Capture radius | **100m** for mountain passes (the only POI type so far) — covers typical GPS drift without a route that merely passes nearby falsely claiming it |
+| Capture method | Distance from the track to the POI, via PostGIS (`Distance` annotation + geodetic filter) — proximity to the whole track, not just start/end point. Applies the same way whether the route is a loop or not — a pass is only ever claimed by proximity, never by loop enclosure |
 | Must physically pass through | Yes — this is the whole point of a POI vs. a territory |
 | Ownership rule | Last visitor owns it (simple, no ambiguity, easy to explain to players) |
 

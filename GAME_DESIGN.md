@@ -45,22 +45,5 @@ require a redeploy.
 |---|---|
 | When is score awarded | Immediately, on activity import/webhook processing |
 | Score lifetime | Two tracks: a **permanent career score** (prestige, never resets) and a **seasonal score** (resets each season, see Phase 11) — this is what most leaderboards should show by default |
-| Value formula | `territory_value + poi_value + pass_value + exploration_bonus` (bonus for visiting a location the player has never captured before) |
-| Value decay | Recalculated **daily**: value drops with recent capture frequency, rises the longer a location goes unvisited. Simple starting formula: `value = base_value * decay_factor(days_since_last_capture, capture_count_30d)` — tune the curve once there's real data |
-
-## Anti-cheat (don't skip this)
-
-A competitive game built on GPS trust needs at least minimal abuse
-resistance before public beta:
-
-- Sanity-check speed/pace against `sport_type` (a "run" averaging 40km/h is
-  a car, not a runner)
-- Flag suspiciously perfect/instant loop closures for review
-- Rely on Strava's own activity flags (manual entry, trainer, flagged for
-  cheating) — don't recompute what Strava already tells you
-- Cap how much of a territory or POI's value a single account can churn in
-  a short window, to blunt farming with fake/duplicate accounts
-
-None of this needs to be sophisticated for a 50-100 person beta, but the
-capture logic (Phase 5/7) should be written with a `is_suspicious` flag from
-day one so it's not a retrofit.
+| Value formula | `territory_value + poi_value` (territory: flat 10/cell; POIs: altitude in meters — a bigger pass is worth more). No exploration bonus yet — needs capture history, which isn't tracked |
+| Value decay | Time-based, not frequency-based (simpler, needs no capture history): value decays **linearly to 0 over 30 days** since capture, at which point ownership itself releases back to unowned — computed live for scoring, actually released by a periodic sweep (`release_expired_ownership`, meant to run daily via cron). 30 days is a first guess, tune once there's real play data |

@@ -11,6 +11,9 @@ from django.http import HttpRequest, HttpResponse, HttpResponseBadRequest, HttpR
 from django.shortcuts import render
 from django.urls import reverse
 
+from game.models import POI
+from game.scoring import leaderboard, player_color, player_score, score_split_pct
+
 from .models import User
 
 STRAVA_AUTHORIZE_URL = "https://www.strava.com/oauth/authorize"
@@ -127,7 +130,23 @@ def profile_view(request: HttpRequest) -> HttpResponse:
     Returns:
         The rendered profile page.
     """
-    return render(request, "accounts/profile.html")
+    assert isinstance(request.user, User)
+    board = leaderboard()
+    rank = next(
+        (i + 1 for i, row in enumerate(board) if row["username"] == request.user.username), None
+    )
+    score = player_score(request.user)
+    territory_pct, poi_pct = score_split_pct(score)
+    context = {
+        "score": score,
+        "territory_pct": territory_pct,
+        "poi_pct": poi_pct,
+        "player_color": player_color(request.user.username),
+        "rank": rank,
+        "player_count": len(board),
+        "claimed_pois": POI.objects.filter(owner=request.user).order_by("-altitude_m"),
+    }
+    return render(request, "accounts/profile.html", context)
 
 
 def _popup_response(request: HttpRequest, *, status: str, message: str) -> HttpResponse:

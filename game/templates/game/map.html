@@ -110,6 +110,17 @@
         map.addImage("pass", imageData);
         map.addSource("pois", { type: "geojson", data: EMPTY_FC });
         map.addLayer({
+          id: "pois-circle",
+          type: "circle",
+          source: "pois",
+          paint: {
+            "circle-radius": ["interpolate", ["linear"], ["zoom"], 6, 2, 10, 5, 14, 13],
+            "circle-color": ["case", ["==", ["get", "owner"], null], "#000000", ["get", "color"]],
+            "circle-stroke-width": 2,
+            "circle-stroke-color": "#ffffff",
+          },
+        });
+        map.addLayer({
           id: "pois-icon",
           type: "symbol",
           source: "pois",
@@ -126,25 +137,27 @@
           className: "owner-tooltip",
           offset: 10,
         });
-        map.on("mousemove", "pois-icon", function (e) {
+        function showPoiPopup(e) {
           map.getCanvas().style.cursor = "pointer";
           var props = e.features[0].properties;
           var html = props.name;
           if (props.altitude_m) html += " · " + props.altitude_m + "m";
-          if (props.owner) {
-            html =
-              '<span class="owner-tooltip-dot" style="background:' +
-              props.color +
-              '"></span>' +
-              html +
-              " · " +
-              props.owner;
-          }
+          html =
+            '<span class="owner-tooltip-dot" style="background:' +
+            (props.owner ? props.color : "#000000") +
+            '"></span>' +
+            html +
+            " · " +
+            (props.owner || "unclaimed");
           poiPopup.setLngLat(e.lngLat).setHTML(html).addTo(map);
-        });
-        map.on("mouseleave", "pois-icon", function () {
+        }
+        function hidePoiPopup() {
           map.getCanvas().style.cursor = "";
           poiPopup.remove();
+        }
+        ["pois-circle", "pois-icon"].forEach(function (layerId) {
+          map.on("mousemove", layerId, showPoiPopup);
+          map.on("mouseleave", layerId, hidePoiPopup);
         });
 
         function loadPOIs() {

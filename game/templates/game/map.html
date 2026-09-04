@@ -9,14 +9,57 @@
 
 {% block body %}
   {% include "accounts/_topbar.html" %}
+  {% include "game/_layers_menu.html" %}
   <div id="map"></div>
   <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
   <script>
-    new maplibregl.Map({
+    var map = new maplibregl.Map({
       container: "map",
       style: "https://tiles.openfreemap.org/styles/liberty",
       center: [5.8, 45.4], // Rhone-Alpes
       zoom: 8,
+    });
+
+    var gridVisible = true;
+
+    map.on("load", function () {
+      map.addSource("grid", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addLayer({
+        id: "grid-fill",
+        type: "fill",
+        source: "grid",
+        paint: { "fill-color": "#3388ff", "fill-opacity": 0.05, "fill-outline-color": "#000000" },
+      });
+
+      function updateGrid() {
+        if (!gridVisible) return;
+        var bounds = map.getBounds();
+        var bbox = [
+          bounds.getWest(),
+          bounds.getSouth(),
+          bounds.getEast(),
+          bounds.getNorth(),
+        ].join(",");
+        fetch("{% url 'grid_geojson' %}?bbox=" + encodeURIComponent(bbox))
+          .then(function (resp) {
+            return resp.json();
+          })
+          .then(function (data) {
+            map.getSource("grid").setData(data);
+          });
+      }
+
+      map.on("moveend", updateGrid);
+      updateGrid();
+
+      document.getElementById("toggle-grid").addEventListener("change", function (e) {
+        gridVisible = e.target.checked;
+        if (gridVisible) {
+          updateGrid();
+        } else {
+          map.getSource("grid").setData({ type: "FeatureCollection", features: [] });
+        }
+      });
     });
   </script>
 {% endblock %}

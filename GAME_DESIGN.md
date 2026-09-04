@@ -24,7 +24,7 @@ require a redeploy.
 
 | Question | Default |
 |---|---|
-| Loop closing tolerance | Start and end of the activity must be within **50m** of each other for the route to be considered a loop candidate |
+| Loop closing tolerance | Start and end of the activity must be within **500m** of each other for the route to be considered a loop candidate — Strava trims ~200m off each end of a public activity to hide home addresses, so a real loop can show up to ~400m "open"; 500m covers that plus GPS noise |
 | Minimum enclosed area | **1 hectare (0.01 km²)** — filters out GPS noise loops (e.g. a parking lot circle) |
 | Maximum territory size | **50 km²** per single capture — forces players toward multiple smaller, contestable territories instead of one mega-loop claiming a whole valley |
 | Self-intersecting routes | Reject for v1 (GEOS `is_valid` check via GeoDjango's geometry API). Figure-eight → largest simple sub-loop is a good v2 improvement, not MVP scope |

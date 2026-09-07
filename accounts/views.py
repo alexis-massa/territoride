@@ -1,23 +1,39 @@
+import json
 import secrets
-from datetime import UTC, datetime
-from typing import TypedDict
+from datetime import UTC, datetime, timedelta
+from typing import Any, TypedDict
 from urllib.parse import urlencode
 
 import requests
 from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
-from django.http import HttpRequest, HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
-from django.shortcuts import render
+from django.http import (
+    HttpRequest,
+    HttpResponse,
+    HttpResponseBadRequest,
+    HttpResponseForbidden,
+    HttpResponseRedirect,
+    JsonResponse,
+)
+from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 
-from game.models import POI
+from game.decay import DECAY_THRESHOLD_DAYS
+from game.models import POI, Activity
 from game.scoring import leaderboard, player_color, player_score, score_split_pct
+from game.strava_import import import_from_strava
 
 from .models import User
 
 STRAVA_AUTHORIZE_URL = "https://www.strava.com/oauth/authorize"
 STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token"
+STRAVA_ACTIVITIES_URL = "https://www.strava.com/api/v3/athlete/activities"
+STRAVA_ACTIVITY_DETAIL_URL = "https://www.strava.com/api/v3/activities"
+STRAVA_PAGE_SIZE = 30
 
 OAUTH_STATE_SESSION_KEY = "strava_oauth_state"
 ERROR_PARAM = "error"
@@ -118,6 +134,162 @@ def strava_callback(request: HttpRequest) -> HttpResponse:
 
     login(request, user, backend="django.contrib.auth.backends.ModelBackend")
     return _popup_response(request, status="success", message="Connected!")
+
+
+def _ensure_valid_token(user: User) -> str:
+    """Refresh the player's stored Strava access token if it has expired.
+
+    Args:
+        user: The player whose Strava connection to check.
+
+    Returns:
+        A valid access token.
+    """
+    if user.strava_token_expires_at and user.strava_token_expires_at > datetime.now(UTC):
+        return user.strava_access_token
+
+    response = requests.post(
+        STRAVA_TOKEN_URL,
+        data={
+            "client_id": settings.STRAVA_CLIENT_ID,
+            "client_secret": settings.STRAVA_CLIENT_SECRET,
+            "refresh_token": user.strava_refresh_token,
+            "grant_type": "refresh_token",
+        },
+        timeout=10,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    user.strava_access_token = payload["access_token"]
+    user.strava_refresh_token = payload["refresh_token"]
+    user.strava_token_expires_at = datetime.fromtimestamp(payload["expires_at"], tz=UTC)
+    user.save()
+    return user.strava_access_token
+
+
+def _fetch_recent_strava_activities(token: str) -> list[dict[str, Any]]:
+    """Fetch every Strava activity within the decay window.
+
+    Activities older than that have no value even if imported, since they'd
+    already be past DECAY_THRESHOLD_DAYS.
+
+    Args:
+        token: A valid Strava access token.
+
+    Returns:
+        Raw activity summaries from Strava, newest first.
+    """
+    cutoff = datetime.now(UTC) - timedelta(days=DECAY_THRESHOLD_DAYS)
+    activities: list[dict[str, Any]] = []
+    page = 1
+    while True:
+        response = requests.get(
+            STRAVA_ACTIVITIES_URL,
+            headers={"Authorization": f"Bearer {token}"},
+            params={"after": int(cutoff.timestamp()), "per_page": STRAVA_PAGE_SIZE, "page": page},
+            timeout=10,
+        )
+        response.raise_for_status()
+        batch = response.json()
+        activities.extend(batch)
+        if len(batch) < STRAVA_PAGE_SIZE:
+            return activities
+        page += 1
+
+
+@login_required
+@require_POST
+def sync_strava_view(request: HttpRequest) -> HttpResponse:
+    """Pull the player's recent Strava activities and capture territory/POIs.
+
+    Args:
+        request: The incoming request.
+
+    Returns:
+        A redirect to the map, with a status message.
+    """
+    assert isinstance(request.user, User)
+    if not request.user.strava_refresh_token:
+        messages.error(request, "Connect with Strava first.")
+        return redirect("map")
+
+    try:
+        token = _ensure_valid_token(request.user)
+        strava_activities = _fetch_recent_strava_activities(token)
+    except requests.HTTPError as exc:
+        detail = exc.response.text[:200] if exc.response is not None else str(exc)
+        messages.error(request, f"Strava returned an error: {detail}")
+        return redirect("map")
+    except requests.RequestException:
+        messages.error(request, "Couldn't reach Strava.")
+        return redirect("map")
+
+    imported, cells, pois = import_from_strava(request.user, strava_activities)
+    if imported:
+        messages.success(
+            request, f"Synced {imported} activities: captured {cells} cells, {pois} passes."
+        )
+    else:
+        messages.success(request, "No new activities to sync.")
+    return redirect("map")
+
+
+def _handle_strava_event(event: dict[str, Any]) -> None:
+    """Process one Strava webhook event: a new/updated activity, or deauthorization.
+
+    Args:
+        event: The decoded webhook payload.
+    """
+    if event.get("object_type") != "activity":
+        return
+    try:
+        user = User.objects.get(athlete_id=event.get("owner_id"))
+    except User.DoesNotExist:
+        return
+
+    if event.get("updates", {}).get("authorized") == "false":
+        user.strava_access_token = ""
+        user.strava_refresh_token = ""
+        user.strava_token_expires_at = None
+        user.save()
+        return
+
+    if event.get("aspect_type") == "delete":
+        Activity.objects.filter(strava_activity_id=event["object_id"]).delete()
+        return
+
+    if event.get("aspect_type") not in ("create", "update"):
+        return
+
+    token = _ensure_valid_token(user)
+    response = requests.get(
+        f"{STRAVA_ACTIVITY_DETAIL_URL}/{event['object_id']}",
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=10,
+    )
+    response.raise_for_status()
+    import_from_strava(user, [response.json()])
+
+
+@csrf_exempt
+def strava_webhook_view(request: HttpRequest) -> HttpResponse:
+    """Handle Strava's webhook subscription handshake and activity events.
+
+    Args:
+        request: The incoming request; GET is the one-time subscription
+            challenge, POST delivers activity/deauthorization events.
+
+    Returns:
+        The echoed challenge on GET; an empty 200 on POST, since Strava
+        requires a fast response regardless of processing outcome.
+    """
+    if request.method == "GET":
+        if request.GET.get("hub.verify_token") != settings.STRAVA_WEBHOOK_VERIFY_TOKEN:
+            return HttpResponseForbidden()
+        return JsonResponse({"hub.challenge": request.GET.get("hub.challenge", "")})
+
+    _handle_strava_event(json.loads(request.body))
+    return HttpResponse()
 
 
 @login_required

@@ -1,6 +1,10 @@
 <div id="topbar">
   <a href="{% url 'leaderboard' %}" id="leaderboard-link">Leaderboard</a>
   {% if user.is_authenticated %}
+    <form method="post" action="{% url 'accounts:strava_sync' %}">
+      {% csrf_token %}
+      <button type="submit" id="sync-strava">Sync from Strava</button>
+    </form>
     <form method="post" action="{% url 'import_activity' %}" enctype="multipart/form-data" id="import-form">
       {% csrf_token %}
       <label for="gpx-input" id="import-activity">Import activity</label>
@@ -59,7 +63,8 @@
     color: inherit;
     cursor: pointer;
   }
-  #connect-strava {
+  #connect-strava,
+  #sync-strava {
     background: #fc4c02;
     color: white;
     border: none;

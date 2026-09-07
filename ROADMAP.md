@@ -9,11 +9,6 @@ POI capture → dynamic value → leaderboards) before a single line of loop
 detection code gets written, and only builds territories once that loop is
 proven to hold people's attention.
 
-A secondary change: a few cross-cutting concerns (Strava API compliance,
-anti-cheat, observability) that weren't in the original are called out
-explicitly, because they're cheap to build in from the start and expensive
-to retrofit.
-
 ## Track A — MVP (playable POI game)
 
 ### Phase 0 — Game Design ✅

@@ -1,9 +1,17 @@
 import json
 from typing import Any
 
+import gpxpy
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.contrib.gis.geos import LineString
 from django.http import HttpRequest, HttpResponse, HttpResponseBadRequest, JsonResponse
-from django.shortcuts import render
+from django.shortcuts import redirect, render
+from django.views.decorators.http import require_POST
 
+from accounts.models import User
+
+from .capture import capture_pois, capture_territory
 from .grid import cell_boundary, cells_in_bbox
 from .models import POI, Activity, TerritoryCell
 from .scoring import leaderboard, player_color
@@ -151,3 +159,46 @@ def leaderboard_view(request: HttpRequest) -> HttpResponse:
         The rendered leaderboard page.
     """
     return render(request, "game/leaderboard.html", {"rows": leaderboard()})
+
+
+@login_required
+@require_POST
+def import_activity_view(request: HttpRequest) -> HttpResponse:
+    """Import an uploaded GPX file as an Activity and capture territory/POIs.
+
+    Args:
+        request: The incoming request; expects a "gpx_file" upload.
+
+    Returns:
+        A redirect to the map, with a status message.
+    """
+    assert isinstance(request.user, User)
+    gpx_file = request.FILES.get("gpx_file")
+    if gpx_file is None:
+        messages.error(request, "No file selected.")
+        return redirect("map")
+
+    try:
+        gpx = gpxpy.parse(gpx_file.read().decode("utf-8"))
+    except Exception:
+        messages.error(request, "Couldn't read that file as GPX.")
+        return redirect("map")
+
+    points = [p for track in gpx.tracks for segment in track.segments for p in segment.points]
+    if len(points) < 2:
+        messages.error(request, "GPX file has fewer than 2 track points.")
+        return redirect("map")
+    if points[0].time is None:
+        messages.error(request, "GPX file is missing activity date/time.")
+        return redirect("map")
+
+    activity = Activity.objects.create(
+        user=request.user,
+        name=gpx.tracks[0].name or gpx_file.name or "Untitled activity",
+        track=LineString([(p.longitude, p.latitude) for p in points], srid=4326),
+        recorded_at=points[0].time,
+    )
+    cells = capture_territory(activity)
+    pois = capture_pois(activity)
+    messages.success(request, f"Imported {activity.name!r}: captured {cells} cells, {pois} passes.")
+    return redirect("map")

@@ -12,6 +12,7 @@ from django.views.decorators.http import require_POST
 from accounts.models import User
 
 from .capture import capture_pois, capture_territory
+from .decay import DECAY_THRESHOLD_DAYS, current_value, elapsed_days
 from .grid import cell_boundary, cells_in_bbox
 from .models import POI, Activity, TerritoryCell
 from .scoring import leaderboard, player_color
@@ -43,7 +44,7 @@ def map_view(request: HttpRequest) -> HttpResponse:
     Returns:
         The rendered map page.
     """
-    return render(request, "game/map.html")
+    return render(request, "game/map.html", {"decay_threshold_days": DECAY_THRESHOLD_DAYS})
 
 
 def grid_geojson_view(request: HttpRequest) -> HttpResponse:
@@ -82,10 +83,17 @@ def _territory_feature(cell: TerritoryCell) -> dict[str, Any]:
         A GeoJSON Feature dict.
     """
     assert cell.owner is not None
+    assert cell.captured_at is not None
     return {
         "type": "Feature",
         "geometry": {"type": "Polygon", "coordinates": [cell_boundary(cell.cell_id)]},
-        "properties": {"owner": cell.owner.username, "color": player_color(cell.owner.username)},
+        "properties": {
+            "owner": cell.owner.username,
+            "color": player_color(cell.owner.username),
+            "captured_at": cell.captured_at.isoformat(),
+            "age_days": round(elapsed_days(cell.captured_at), 1),
+            "remaining": current_value(1.0, cell.captured_at),
+        },
     }
 
 
@@ -145,6 +153,9 @@ def _poi_feature(poi: POI) -> dict[str, Any]:
             "altitude_m": poi.altitude_m,
             "owner": poi.owner.username if poi.owner else None,
             "color": player_color(poi.owner.username) if poi.owner else None,
+            "captured_at": poi.claimed_at.isoformat() if poi.claimed_at else None,
+            "age_days": round(elapsed_days(poi.claimed_at), 1) if poi.claimed_at else None,
+            "remaining": current_value(1.0, poi.claimed_at) if poi.claimed_at else None,
         },
     }
 

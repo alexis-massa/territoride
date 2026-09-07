@@ -31,6 +31,18 @@
   <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
   <script>
     var EMPTY_FC = { type: "FeatureCollection", features: [] };
+    var DECAY_THRESHOLD_DAYS = {{ decay_threshold_days }};
+
+    function decaySuffix(props) {
+      return (
+        " · " +
+        Math.floor(props.age_days) +
+        "/" +
+        DECAY_THRESHOLD_DAYS +
+        " days · captured " +
+        new Date(props.captured_at).toLocaleDateString()
+      );
+    }
 
     // Restore each layer checkbox from localStorage and keep it persisted,
     // independently of the per-layer load/clear listeners below.
@@ -99,7 +111,11 @@
         id: "territory-fill",
         type: "fill",
         source: "territory",
-        paint: { "fill-color": ["get", "color"], "fill-opacity": 0.35, "fill-outline-color": "#000000" },
+        paint: {
+          "fill-color": ["get", "color"],
+          "fill-opacity": ["*", 0.35, ["get", "remaining"]],
+          "fill-outline-color": "#000000",
+        },
       });
 
       var ownerPopup = new maplibregl.Popup({
@@ -115,7 +131,8 @@
           '<span class="owner-tooltip-dot" style="background:' +
           props.color +
           '"></span>' +
-          props.owner;
+          props.owner +
+          decaySuffix(props);
         ownerPopup.setLngLat(e.lngLat).setHTML(html).addTo(map);
       });
       map.on("mouseleave", "territory-fill", function () {
@@ -141,6 +158,7 @@
           paint: {
             "circle-radius": ["interpolate", ["linear"], ["zoom"], 6, 2, 10, 5, 14, 13],
             "circle-color": ["case", ["==", ["get", "owner"], null], "#000000", ["get", "color"]],
+            "circle-opacity": ["case", ["==", ["get", "owner"], null], 1, ["get", "remaining"]],
             "circle-stroke-width": 2,
             "circle-stroke-color": "#ffffff",
           },
@@ -173,7 +191,8 @@
             '"></span>' +
             html +
             " · " +
-            (props.owner || "unclaimed");
+            (props.owner || "unclaimed") +
+            (props.owner ? decaySuffix(props) : "");
           poiPopup.setLngLat(e.lngLat).setHTML(html).addTo(map);
         }
         function hidePoiPopup() {

@@ -32,6 +32,16 @@
   <script>
     var EMPTY_FC = { type: "FeatureCollection", features: [] };
 
+    // Restore each layer checkbox from localStorage and keep it persisted,
+    // independently of the per-layer load/clear listeners below.
+    ["toggle-grid", "toggle-territory", "toggle-routes", "toggle-pois"].forEach(function (id) {
+      var stored = localStorage.getItem(id);
+      if (stored !== null) document.getElementById(id).checked = stored === "true";
+      document.getElementById(id).addEventListener("change", function (e) {
+        localStorage.setItem(id, e.target.checked);
+      });
+    });
+
     // map.loadImage() can't reliably decode SVG - it's built for raster
     // images. Rendering through a <img> + <canvas> instead uses the
     // browser's normal SVG rendering, which is universally supported.
@@ -58,7 +68,22 @@
       zoom: 8,
     });
 
-    var gridVisible = true;
+    function currentBbox() {
+      var bounds = map.getBounds();
+      return [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()].join(",");
+    }
+
+    function loadSource(sourceId, url) {
+      fetch(url)
+        .then(function (resp) {
+          return resp.json();
+        })
+        .then(function (data) {
+          map.getSource(sourceId).setData(data);
+        });
+    }
+
+    var gridVisible = document.getElementById("toggle-grid").checked;
 
     map.on("load", function () {
       map.addSource("grid", { type: "geojson", data: EMPTY_FC });
@@ -160,20 +185,19 @@
           map.on("mouseleave", layerId, hidePoiPopup);
         });
 
+        var poisVisible = document.getElementById("toggle-pois").checked;
+
         function loadPOIs() {
-          fetch("{% url 'pois_geojson' %}")
-            .then(function (resp) {
-              return resp.json();
-            })
-            .then(function (data) {
-              map.getSource("pois").setData(data);
-            });
+          if (!poisVisible) return;
+          loadSource("pois", "{% url 'pois_geojson' %}?bbox=" + encodeURIComponent(currentBbox()));
         }
 
+        map.on("moveend", loadPOIs);
         loadPOIs();
 
         document.getElementById("toggle-pois").addEventListener("change", function (e) {
-          if (e.target.checked) {
+          poisVisible = e.target.checked;
+          if (poisVisible) {
             loadPOIs();
           } else {
             map.getSource("pois").setData(EMPTY_FC);
@@ -183,46 +207,21 @@
 
       function updateGrid() {
         if (!gridVisible) return;
-        var bounds = map.getBounds();
-        var bbox = [
-          bounds.getWest(),
-          bounds.getSouth(),
-          bounds.getEast(),
-          bounds.getNorth(),
-        ].join(",");
-        fetch("{% url 'grid_geojson' %}?bbox=" + encodeURIComponent(bbox))
-          .then(function (resp) {
-            return resp.json();
-          })
-          .then(function (data) {
-            map.getSource("grid").setData(data);
-          });
+        loadSource("grid", "{% url 'grid_geojson' %}?bbox=" + encodeURIComponent(currentBbox()));
       }
 
       function loadTerritory() {
-        fetch("{% url 'territory_geojson' %}")
-          .then(function (resp) {
-            return resp.json();
-          })
-          .then(function (data) {
-            map.getSource("territory").setData(data);
-          });
+        loadSource("territory", "{% url 'territory_geojson' %}");
       }
 
       function loadRoutes() {
-        fetch("{% url 'routes_geojson' %}")
-          .then(function (resp) {
-            return resp.json();
-          })
-          .then(function (data) {
-            map.getSource("routes").setData(data);
-          });
+        loadSource("routes", "{% url 'routes_geojson' %}");
       }
 
       map.on("moveend", updateGrid);
       updateGrid();
-      loadTerritory();
-      loadRoutes();
+      if (document.getElementById("toggle-territory").checked) loadTerritory();
+      if (document.getElementById("toggle-routes").checked) loadRoutes();
 
       document.getElementById("toggle-grid").addEventListener("change", function (e) {
         gridVisible = e.target.checked;

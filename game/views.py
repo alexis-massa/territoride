@@ -4,7 +4,7 @@ from typing import Any
 import gpxpy
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.contrib.gis.geos import LineString
+from django.contrib.gis.geos import LineString, Polygon
 from django.http import HttpRequest, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
@@ -17,6 +17,21 @@ from .models import POI, Activity, TerritoryCell
 from .scoring import leaderboard, player_color
 
 BBOX_PARAM = "bbox"
+
+
+def _bbox_from_request(request: HttpRequest) -> tuple[float, float, float, float]:
+    """Parse the "bbox" query param into (min_lon, min_lat, max_lon, max_lat).
+
+    Args:
+        request: The incoming request.
+
+    Raises:
+        ValueError: If the param is missing or malformed.
+    """
+    if BBOX_PARAM not in request.GET:
+        raise ValueError("Missing bbox param")
+    min_lon, min_lat, max_lon, max_lat = (float(v) for v in request.GET[BBOX_PARAM].split(","))
+    return min_lon, min_lat, max_lon, max_lat
 
 
 def map_view(request: HttpRequest) -> HttpResponse:
@@ -41,10 +56,8 @@ def grid_geojson_view(request: HttpRequest) -> HttpResponse:
     Returns:
         A GeoJSON FeatureCollection, or 400 if bbox is missing/malformed.
     """
-    if BBOX_PARAM not in request.GET:
-        return HttpResponseBadRequest("Missing bbox param")
     try:
-        min_lon, min_lat, max_lon, max_lat = (float(v) for v in request.GET[BBOX_PARAM].split(","))
+        min_lon, min_lat, max_lon, max_lat = _bbox_from_request(request)
     except ValueError:
         return HttpResponseBadRequest("bbox must be min_lon,min_lat,max_lon,max_lat")
 
@@ -137,15 +150,24 @@ def _poi_feature(poi: POI) -> dict[str, Any]:
 
 
 def pois_geojson_view(request: HttpRequest) -> HttpResponse:
-    """Mountain pass POIs, as GeoJSON.
+    """Mountain pass POIs covering a viewport, as GeoJSON.
 
     Args:
-        request: The incoming request.
+        request: The incoming request; expects a "bbox" query param
+            formatted as "min_lon,min_lat,max_lon,max_lat".
 
     Returns:
-        A GeoJSON FeatureCollection of POIs.
+        A GeoJSON FeatureCollection, or 400 if bbox is missing/malformed.
     """
-    features = [_poi_feature(poi) for poi in POI.objects.select_related("owner")]
+    try:
+        min_lon, min_lat, max_lon, max_lat = _bbox_from_request(request)
+    except ValueError:
+        return HttpResponseBadRequest("bbox must be min_lon,min_lat,max_lon,max_lat")
+
+    bbox = Polygon.from_bbox((min_lon, min_lat, max_lon, max_lat))
+    bbox.srid = 4326
+    pois = POI.objects.filter(location__within=bbox).select_related("owner")
+    features = [_poi_feature(poi) for poi in pois]
     return JsonResponse({"type": "FeatureCollection", "features": features})
 
 

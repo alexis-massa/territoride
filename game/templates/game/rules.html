@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Rules — TerritoRide{% endblock %}
+
+{% block head %}
+  <style>
+    .rules-list { margin: 0; padding-left: 1.2rem; }
+    .rules-list li { margin-bottom: 0.75rem; line-height: 1.5; }
+    .rules-list li:last-child { margin-bottom: 0; }
+  </style>
+{% endblock %}
+
+{% block body %}
+  <div class="page">
+    <a href="{% url 'map' %}" class="back-link">&larr; Back to map</a>
+    <h1>How it works</h1>
+
+    <div class="card">
+      <h2 style="margin-top: 0;">The rules</h2>
+      <ul class="rules-list">
+        <li>The world is divided into small hexagonal tiles. Ride through one and it's yours ({{ cell_value }} points).</li>
+        <li>If your ride is a loop (start and end within {{ loop_tolerance_m }}m of each other), you also claim every tile enclosed inside it - not just the ones you rode through.</li>
+        <li>Mountain passes are separate landmarks scattered worldwide. Ride within {{ poi_radius_m }}m of one to claim it - it's worth its altitude in points, so bigger passes are worth more.</li>
+        <li>Whoever rode it most recently owns it - always. There's no permanent ownership, so ride back through contested ground to take it.</li>
+        <li>Everything decays: a tile or pass loses value evenly over {{ decay_days }} days, and after {{ decay_days }} days it's released back to unclaimed automatically. Ride it again to keep it.</li>
+        <li>Your score is the sum of everything you currently hold, decay included - check the <a href="{% url 'leaderboard' %}">leaderboard</a> anytime.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top: 0;">Is it safe to connect Strava?</h2>
+      <ul class="rules-list">
+        <li>Login goes through Strava's own sign-in page - TerritoRide never sees or stores your Strava password.</li>
+        <li>We only ever request read access to your activities. We can't post, edit, or delete anything on your Strava account.</li>
+        <li>From each activity we only read its name, start time, and GPS route - nothing else.</li>
+        <li>Your Strava connection is stored encrypted, not in plain text.</li>
+        <li>You can disconnect at any time from Strava's own "My Apps" settings - we're notified immediately and stop storing your access.</li>
+      </ul>
+    </div>
+  </div>
+{% endblock %}

@@ -2,7 +2,7 @@ from typing import Any
 
 from django.core.management.base import BaseCommand
 
-from game.capture import capture_pois, capture_territory
+from game.capture import recapture_all
 from game.models import Activity
 
 
@@ -16,11 +16,7 @@ class Command(BaseCommand):
             *args: Unused positional arguments from Django's command framework.
             **options: Unused parsed options from Django's command framework.
         """
-        activities = list(Activity.objects.order_by("recorded_at"))
-        cells = pois = 0
-        for activity in activities:
-            cells += capture_territory(activity)
-            pois += capture_pois(activity)
+        cells, pois = recapture_all()
         self.stdout.write(
-            f"Recaptured {cells} cells and {pois} POIs across {len(activities)} activities"
+            f"Recaptured {cells} cells and {pois} POIs across {Activity.objects.count()} activities"
         )

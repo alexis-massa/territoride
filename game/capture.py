@@ -92,3 +92,22 @@ def capture_pois(activity: Activity) -> int:
         distance__lte=D(m=POI_CAPTURE_RADIUS_M)  # type: ignore[misc]  # django-stubs wants a float here, but a Distance object is correct
     )
     return nearby.update(owner=activity.user, claimed_by=activity, claimed_at=activity.recorded_at)
+
+
+def recapture_all() -> tuple[int, int]:
+    """Replay capture for every activity, oldest first.
+
+    Needed after POIs are added, capture logic changes, or a player's
+    activities are deleted - so any surviving activity through the same
+    ground reclaims it instead of leaving it stuck at whatever was last
+    written.
+
+    Returns:
+        (cells_captured, pois_captured) totals across every activity.
+    """
+    activities = list(Activity.objects.order_by("recorded_at"))
+    cells = pois = 0
+    for activity in activities:
+        cells += capture_territory(activity)
+        pois += capture_pois(activity)
+    return cells, pois

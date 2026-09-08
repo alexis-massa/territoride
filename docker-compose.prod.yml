@@ -1,0 +1,24 @@
+services:
+  db:
+    ports: !reset []
+
+  app:
+    command: uv run gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3
+    ports: !reset []
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+    env_file:
+      - .env
+    depends_on:
+      - app
+
+volumes:
+  caddy_data:

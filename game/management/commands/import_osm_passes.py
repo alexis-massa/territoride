@@ -9,9 +9,6 @@ from game.models import POI
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
-# Rough bounding box for the former Rhone-Alpes region: (south, west, north, east)
-RHONE_ALPES_BBOX = (44.0, 4.0, 46.5, 7.3)
-
 # The public Overpass instance is a shared, sometimes-overloaded community
 # service - retry a couple of times before giving up. It also rejects
 # requests with no identifying User-Agent (its usage policy asks for one).
@@ -38,7 +35,7 @@ def _parse_altitude(ele: str | None) -> int | None:
 
 
 class Command(BaseCommand):
-    help = "Import named mountain passes from OpenStreetMap within Rhone-Alpes"
+    help = "Import named mountain passes from OpenStreetMap, worldwide"
 
     def handle(self, *args: Any, **options: Any) -> None:
         """Fetch mountain_pass=yes nodes from Overpass and create any new POIs.
@@ -47,12 +44,7 @@ class Command(BaseCommand):
             *args: Unused positional arguments from Django's command framework.
             **options: Unused parsed options from Django's command framework.
         """
-        south, west, north, east = RHONE_ALPES_BBOX
-        query = (
-            "[out:json][timeout:25];"
-            f'node["mountain_pass"="yes"]["name"]({south},{west},{north},{east});'
-            "out body;"
-        )
+        query = '[out:json][timeout:90];node["mountain_pass"="yes"]["name"];out body;'
         elements = self._fetch_elements(query)
 
         created = 0
@@ -83,7 +75,7 @@ class Command(BaseCommand):
         """
         for attempt in range(1, MAX_ATTEMPTS + 1):
             response = requests.post(
-                OVERPASS_URL, data={"data": query}, headers=REQUEST_HEADERS, timeout=30
+                OVERPASS_URL, data={"data": query}, headers=REQUEST_HEADERS, timeout=120
             )
             if response.ok:
                 elements: list[dict[str, Any]] = response.json()["elements"]

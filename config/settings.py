@@ -104,6 +104,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 STRAVA_CLIENT_ID = env("STRAVA_CLIENT_ID", default="")
 STRAVA_CLIENT_SECRET = env("STRAVA_CLIENT_SECRET", default="")
 
+# Shared secret Strava echoes back when setting up the webhook subscription,
+# to prove the callback URL is ours: https://developers.strava.com/docs/webhooks/
+STRAVA_WEBHOOK_VERIFY_TOKEN = env("STRAVA_WEBHOOK_VERIFY_TOKEN", default="")
+
 # Encrypts stored Strava tokens (see accounts/crypto.py). Rotating this key
 # invalidates every stored token — players would need to reconnect Strava.
 TOKEN_ENCRYPTION_KEY = env("TOKEN_ENCRYPTION_KEY")

@@ -44,11 +44,14 @@ class Command(BaseCommand):
             *args: Unused positional arguments from Django's command framework.
             **options: Unused parsed options from Django's command framework.
         """
+        self.stdout.write("Querying Overpass (worldwide - can take a minute or two)...")
         query = '[out:json][timeout:90];node["mountain_pass"="yes"]["name"];out body;'
         elements = self._fetch_elements(query)
+        total = len(elements)
+        self.stdout.write(f"Fetched {total} passes, importing...")
 
         created = 0
-        for element in elements:
+        for i, element in enumerate(elements, start=1):
             _, was_created = POI.objects.get_or_create(
                 name=element["tags"]["name"],
                 defaults={
@@ -58,8 +61,10 @@ class Command(BaseCommand):
             )
             if was_created:
                 created += 1
+            if i % 1000 == 0 or i == total:
+                self.stdout.write(f"  {i}/{total} processed ({created} new so far)")
 
-        skipped = len(elements) - created
+        skipped = total - created
         self.stdout.write(
             f"Created {created} new POIs from OpenStreetMap ({skipped} already existed)"
         )

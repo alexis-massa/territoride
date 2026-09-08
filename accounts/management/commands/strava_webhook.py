@@ -29,6 +29,15 @@ class Command(BaseCommand):
         else:
             self._delete()
 
+    def _check(self, response: requests.Response) -> None:
+        """Raise with Strava's actual error body, not just the generic status message.
+
+        Args:
+            response: The API response to check.
+        """
+        if not response.ok:
+            raise CommandError(f"{response.status_code}: {response.text}")
+
     def _create(self, callback_url: str | None) -> None:
         """Register this app's webhook callback URL with Strava."""
         if not callback_url:
@@ -43,7 +52,7 @@ class Command(BaseCommand):
             },
             timeout=15,
         )
-        response.raise_for_status()
+        self._check(response)
         self.stdout.write(f"Created: {response.json()}")
 
     def _view(self) -> None:
@@ -56,7 +65,7 @@ class Command(BaseCommand):
             },
             timeout=15,
         )
-        response.raise_for_status()
+        self._check(response)
         self.stdout.write(str(response.json()))
 
     def _delete(self) -> None:
@@ -69,14 +78,15 @@ class Command(BaseCommand):
             },
             timeout=15,
         )
-        response.raise_for_status()
+        self._check(response)
         for subscription in response.json():
-            requests.delete(
+            delete_response = requests.delete(
                 f"{PUSH_SUBSCRIPTIONS_URL}/{subscription['id']}",
                 params={
                     "client_id": settings.STRAVA_CLIENT_ID,
                     "client_secret": settings.STRAVA_CLIENT_SECRET,
                 },
                 timeout=15,
-            ).raise_for_status()
+            )
+            self._check(delete_response)
             self.stdout.write(f"Deleted subscription {subscription['id']}")

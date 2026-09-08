@@ -27,6 +27,15 @@
       </ul>
     </div>
 
+    <div class="card" id="math">
+      <h2 style="margin-top: 0;">The math</h2>
+      <ul class="rules-list">
+        <li>Each tile is worth {{ cell_value }} points at the moment you capture it. Each pass is worth its altitude in meters.</li>
+        <li>From there, value decays linearly: <code>value &times; (1 &minus; days_held / {{ decay_days }})</code> - so a tile captured 15 days ago is worth half what it was on day one, and 0 by day {{ decay_days }}.</li>
+        <li>Your total score is just the sum of every tile and pass you currently hold, decay already applied - nothing else factors in. The <a href="{% url 'leaderboard' %}">leaderboard</a> shows exactly this breakdown for every player.</li>
+      </ul>
+    </div>
+
     <div class="card">
       <h2 style="margin-top: 0;">Is it safe to connect Strava?</h2>
       <ul class="rules-list">
@@ -36,6 +45,7 @@
         <li>Your Strava connection is stored encrypted, not in plain text.</li>
         <li>You can delete your account at any time from the <a href="{% url 'accounts:profile' %}">profile</a> page.</li>
         <li>You can disconnect at any time from Strava's own "My Apps" settings - we're notified immediately and stop storing your access.</li>
+        <li>This project is open source - see the <a href="{% url 'changelog' %}">changelog</a> or <a href="https://github.com/alexis-massa/territoride" target="_blank" rel="noopener">view the code on GitHub</a>.</li>
       </ul>
     </div>
   </div>

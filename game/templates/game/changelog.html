@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Changelog — TerritoRide{% endblock %}
+
+{% block head %}
+  <style>
+    .changelog-byline { color: #777; font-size: 0.9rem; margin-bottom: 1.5rem; }
+    .changelog-body h2 { margin-top: 1.5rem; }
+    .changelog-body h2:first-child { margin-top: 0; }
+    .changelog-body h3 { margin-bottom: 0.5rem; }
+    .changelog-body ul { padding-left: 1.2rem; }
+    .changelog-body li { margin-bottom: 0.4rem; line-height: 1.5; }
+  </style>
+{% endblock %}
+
+{% block body %}
+  <div class="page">
+    <a href="{% url 'map' %}" class="back-link">&larr; Back to map</a>
+    <h1>Changelog</h1>
+    <p class="changelog-byline">
+      Open source -
+      <a href="https://github.com/alexis-massa/territoride" target="_blank" rel="noopener">view the code on GitHub</a>
+    </p>
+
+    <div class="card changelog-body">
+      {{ changelog_html|safe }}
+    </div>
+  </div>
+{% endblock %}

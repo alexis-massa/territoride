@@ -1,9 +1,11 @@
 import zlib
 from typing import Any
 
+from django.db.models import Count
+
 from accounts.models import User
 
-from .decay import current_value
+from .decay import current_value, elapsed_days
 from .models import POI, TerritoryCell
 
 # Flat value per owned cell. POIs are valued by altitude instead of a flat
@@ -67,8 +69,64 @@ def score_split_pct(score: dict[str, int]) -> tuple[int, int]:
     return territory_pct, 100 - territory_pct
 
 
-def leaderboard() -> list[dict[str, Any]]:
+def player_capture_detail(user: User) -> dict[str, list[dict[str, Any]]]:
+    """Per-ride/per-pass breakdown of a player's current holdings.
+
+    Territory cells are grouped by the activity that captured them - an
+    individual hex tile means nothing to a player, but "this ride holds N
+    tiles worth P points" does.
+
+    Args:
+        user: The player to break down.
+
+    Returns:
+        "territory": groups sharing a capture, newest first, each with
+            activity_name, captured_at, age_days, cell_count, points.
+        "pois": individually claimed passes, newest first, each with name,
+            altitude_m, claimed_at, age_days, points.
+    """
+    groups = (
+        TerritoryCell.objects.filter(owner=user)
+        .values("captured_by__name", "captured_at")
+        .annotate(cell_count=Count("cell_id"))
+        .order_by("-captured_at")
+    )
+    territory: list[dict[str, Any]] = []
+    for g in groups:
+        captured_at = g["captured_at"]
+        assert captured_at is not None
+        territory.append(
+            {
+                "activity_name": g["captured_by__name"] or "Unknown ride",
+                "captured_at": captured_at,
+                "age_days": round(elapsed_days(captured_at), 1),
+                "cell_count": g["cell_count"],
+                "points": round(current_value(TERRITORY_CELL_VALUE, captured_at) * g["cell_count"]),
+            }
+        )
+
+    pois: list[dict[str, Any]] = []
+    for poi in POI.objects.filter(owner=user).order_by("-claimed_at"):
+        assert poi.claimed_at is not None
+        pois.append(
+            {
+                "name": poi.name,
+                "altitude_m": poi.altitude_m,
+                "claimed_at": poi.claimed_at,
+                "age_days": round(elapsed_days(poi.claimed_at), 1),
+                "points": round(current_value(poi.altitude_m or 0, poi.claimed_at)),
+            }
+        )
+    return {"territory": territory, "pois": pois}
+
+
+def leaderboard(*, with_detail: bool = False) -> list[dict[str, Any]]:
     """Every player with any current ownership, ranked by score.
+
+    Args:
+        with_detail: Also attach each player's per-ride/per-pass breakdown
+            (see player_capture_detail) under "detail". Off by default since
+            callers like the profile page's rank lookup don't need it.
 
     Returns:
         Dicts with username, color, cell_count, poi_count, territory_points,
@@ -83,16 +141,17 @@ def leaderboard() -> list[dict[str, Any]]:
             continue
         score = player_score(user)
         territory_pct, poi_pct = score_split_pct(score)
-        rows.append(
-            {
-                "username": user.username,
-                "color": player_color(user.username),
-                "cell_count": cell_count,
-                "poi_count": poi_count,
-                "territory_pct": territory_pct,
-                "poi_pct": poi_pct,
-                **score,
-            }
-        )
+        row = {
+            "username": user.username,
+            "color": player_color(user.username),
+            "cell_count": cell_count,
+            "poi_count": poi_count,
+            "territory_pct": territory_pct,
+            "poi_pct": poi_pct,
+            **score,
+        }
+        if with_detail:
+            row["detail"] = player_capture_detail(user)
+        rows.append(row)
     rows.sort(key=lambda row: row["total"], reverse=True)
     return rows

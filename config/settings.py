@@ -37,6 +37,7 @@ AUTH_USER_MODEL = "accounts.User"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -100,6 +101,21 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# WhiteNoise serves static files directly from gunicorn - no separate
+# static file server needed. DEBUG=False disables Django's own dev-only
+# static serving, and nothing else is set up to replace it in production.
+# The compressed/manifest storage needs `collectstatic` to have run, so it's
+# production-only - dev keeps the plain finder-based storage as always.
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
+        if DEBUG
+        else "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    },
+}
 
 LOGIN_URL = "/"
 LOGOUT_REDIRECT_URL = "/"

@@ -1,6 +1,6 @@
 import h3
 
-RESOLUTION = 7
+RESOLUTION = 8
 
 
 def cell_boundary(cell: str) -> list[tuple[float, float]]:

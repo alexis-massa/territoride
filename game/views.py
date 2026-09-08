@@ -2,6 +2,7 @@ import json
 from typing import Any
 
 import gpxpy
+import h3
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.gis.geos import LineString, Polygon
@@ -35,6 +36,29 @@ def _bbox_from_request(request: HttpRequest) -> tuple[float, float, float, float
     return min_lon, min_lat, max_lon, max_lat
 
 
+def _user_territory_bbox(user: User) -> tuple[float, float, float, float] | None:
+    """Bounding box covering a player's current cells and passes.
+
+    Args:
+        user: The player to center the map on.
+
+    Returns:
+        (min_lon, min_lat, max_lon, max_lat), or None if they hold nothing.
+    """
+    lats: list[float] = []
+    lons: list[float] = []
+    for cell_id in TerritoryCell.objects.filter(owner=user).values_list("cell_id", flat=True):
+        lat, lng = h3.cell_to_latlng(cell_id)
+        lats.append(lat)
+        lons.append(lng)
+    for location in POI.objects.filter(owner=user).values_list("location", flat=True):
+        lons.append(location.x)
+        lats.append(location.y)
+    if not lats:
+        return None
+    return min(lons), min(lats), max(lons), max(lats)
+
+
 def map_view(request: HttpRequest) -> HttpResponse:
     """Render the main world map page.
 
@@ -44,7 +68,15 @@ def map_view(request: HttpRequest) -> HttpResponse:
     Returns:
         The rendered map page.
     """
-    return render(request, "game/map.html", {"decay_threshold_days": DECAY_THRESHOLD_DAYS})
+    default_bbox = None
+    if request.user.is_authenticated:
+        assert isinstance(request.user, User)
+        default_bbox = _user_territory_bbox(request.user)
+    return render(
+        request,
+        "game/map.html",
+        {"decay_threshold_days": DECAY_THRESHOLD_DAYS, "default_bbox": default_bbox},
+    )
 
 
 def grid_geojson_view(request: HttpRequest) -> HttpResponse:

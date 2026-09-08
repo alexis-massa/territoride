@@ -259,7 +259,7 @@ def leaderboard_view(request: HttpRequest) -> HttpResponse:
     Returns:
         The rendered leaderboard page.
     """
-    return render(request, "game/leaderboard.html", {"rows": leaderboard()})
+    return render(request, "game/leaderboard.html", {"rows": leaderboard(with_detail=True)})
 
 
 @login_required

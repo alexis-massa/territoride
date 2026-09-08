@@ -4,16 +4,28 @@
 
 {% block head %}
   <style>
-    .rank-row {
+    .rank-row { border-bottom: 1px solid #eee; }
+    .rank-row:last-child { border-bottom: none; }
+    .rank-row summary {
       display: flex;
       align-items: center;
       gap: 1rem;
       padding: 0.9rem 0;
-      border-bottom: 1px solid #eee;
+      cursor: pointer;
+      list-style: none;
     }
-    .rank-row:last-child { border-bottom: none; }
+    .rank-row summary::-webkit-details-marker { display: none; }
+    .rank-row[open] summary { padding-bottom: 0.5rem; }
+    .rank-chevron {
+      color: #bbb;
+      font-size: 0.75rem;
+      flex-shrink: 0;
+      width: 0.7rem;
+      transition: transform 0.15s;
+    }
+    .rank-row[open] .rank-chevron { transform: rotate(90deg); }
     .rank-number {
-      width: 2rem;
+      width: 1.3rem;
       text-align: center;
       font-weight: 700;
       font-size: 1.1rem;
@@ -40,6 +52,25 @@
       font-weight: 700;
       flex-shrink: 0;
     }
+    .rank-detail { padding: 0 0 1rem 3rem; }
+    .rank-detail h3 {
+      margin: 0.75rem 0 0.4rem;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: #999;
+    }
+    .rank-detail h3:first-child { margin-top: 0; }
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      font-size: 0.85rem;
+      padding: 0.3rem 0;
+      border-bottom: 1px solid #f3f3f3;
+    }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-row .detail-meta { color: #999; flex-shrink: 0; }
   </style>
 {% endblock %}
 
@@ -51,23 +82,50 @@
     <div class="card">
       {% if rows %}
         {% for row in rows %}
-          <div class="rank-row {% if forloop.counter == 1 %}top1{% elif forloop.counter == 2 %}top2{% elif forloop.counter == 3 %}top3{% endif %}">
-            <div class="rank-number">{{ forloop.counter }}</div>
-            <div class="rank-main">
-              <div class="rank-name">
-                <span class="player-dot" style="background: {{ row.color }}"></span>
-                {{ row.username }}
+          <details class="rank-row {% if forloop.counter == 1 %}top1{% elif forloop.counter == 2 %}top2{% elif forloop.counter == 3 %}top3{% endif %}">
+            <summary>
+              <span class="rank-chevron">&#9656;</span>
+              <div class="rank-number">{{ forloop.counter }}</div>
+              <div class="rank-main">
+                <div class="rank-name">
+                  <span class="player-dot" style="background: {{ row.color }}"></span>
+                  {{ row.username }}
+                </div>
+                <div
+                  class="score-bar"
+                  title="Territory: {{ row.territory_points }} pts ({{ row.territory_pct }}%) · Passes: {{ row.poi_points }} pts ({{ row.poi_pct }}%)"
+                >
+                  <div class="score-bar-territory" style="width: {{ row.territory_pct }}%"></div>
+                  <div class="score-bar-poi" style="width: {{ row.poi_pct }}%"></div>
+                </div>
+                <div class="rank-stats">
+                  {{ row.cell_count }} cell{{ row.cell_count|pluralize }} ({{ row.territory_points }} pts) ·
+                  {{ row.poi_count }} pass{{ row.poi_count|pluralize:"es" }} ({{ row.poi_points }} pts)
+                </div>
               </div>
-              <div class="score-bar">
-                <div class="score-bar-territory" style="width: {{ row.territory_pct }}%"></div>
-                <div class="score-bar-poi" style="width: {{ row.poi_pct }}%"></div>
-              </div>
-              <div class="rank-stats">
-                {{ row.cell_count }} cell{{ row.cell_count|pluralize }} · {{ row.poi_count }} pass{{ row.poi_count|pluralize:"es" }}
-              </div>
+              <div class="rank-total">{{ row.total }}</div>
+            </summary>
+            <div class="rank-detail">
+              {% if row.detail.territory %}
+                <h3>Territory captures</h3>
+                {% for g in row.detail.territory %}
+                  <div class="detail-row">
+                    <span>{{ g.activity_name }} - {{ g.cell_count }} cell{{ g.cell_count|pluralize }}</span>
+                    <span class="detail-meta">{{ g.age_days|floatformat:0 }}d ago &middot; {{ g.points }} pts</span>
+                  </div>
+                {% endfor %}
+              {% endif %}
+              {% if row.detail.pois %}
+                <h3>Passes</h3>
+                {% for p in row.detail.pois %}
+                  <div class="detail-row">
+                    <span>{{ p.name }} ({{ p.altitude_m|default:"?" }}m)</span>
+                    <span class="detail-meta">{{ p.age_days|floatformat:0 }}d ago &middot; {{ p.points }} pts</span>
+                  </div>
+                {% endfor %}
+              {% endif %}
             </div>
-            <div class="rank-total">{{ row.total }}</div>
-          </div>
+          </details>
         {% endfor %}
       {% else %}
         <p>No one has captured anything yet.</p>
@@ -77,6 +135,7 @@
     <div class="legend">
       <div class="legend-item"><span class="legend-swatch" style="background:#3b6fd6"></span> Territory</div>
       <div class="legend-item"><span class="legend-swatch" style="background:#7a5230"></span> Passes</div>
+      <a href="{% url 'rules' %}#math">How is this calculated?</a>
     </div>
   </div>
 {% endblock %}

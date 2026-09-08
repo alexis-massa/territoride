@@ -41,17 +41,17 @@ the frontend.
 ## Local development
 
 ```bash
-cp .env.example .env   # fill in Strava API credentials, generate the rest
-docker compose up -d
-docker compose exec app uv run python manage.py migrate
+./setup.sh
 ```
 
-One-time setup for the changelog commit hook (see below) - each clone needs
-to opt in, since git hooks aren't tracked by git itself:
+Prompts for Strava API credentials (from
+[strava.com/settings/api](https://www.strava.com/settings/api) - set that
+app's "Authorization Callback Domain" to `localhost`; leave blank to fill in
+later), generates everything else that should be random, enables the
+changelog commit hook, and builds/starts the app at http://localhost:8000.
 
-```bash
-git config core.hooksPath .githooks
-```
+Refuses to run if `.env` already exists, so it's safe to leave lying around -
+remove `.env` first if you want to regenerate it.
 
 ## Changelog
 

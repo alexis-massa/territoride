@@ -113,11 +113,29 @@
       });
     }
 
+    var VIEW_KEY = "map-view";
+    var savedView = JSON.parse(localStorage.getItem(VIEW_KEY) || "null");
+    var DEFAULT_BBOX = {% if default_bbox %}[{{ default_bbox.0 }}, {{ default_bbox.1 }}, {{ default_bbox.2 }}, {{ default_bbox.3 }}]{% else %}null{% endif %};
+
     var map = new maplibregl.Map({
       container: "map",
       style: "https://tiles.openfreemap.org/styles/liberty",
-      center: [5.8, 45.4], // Rhone-Alpes
-      zoom: 8,
+      center: savedView ? savedView.center : [5.8, 45.4], // Rhone-Alpes
+      zoom: savedView ? savedView.zoom : 8,
+    });
+
+    if (!savedView && DEFAULT_BBOX) {
+      map.fitBounds(
+        [[DEFAULT_BBOX[0], DEFAULT_BBOX[1]], [DEFAULT_BBOX[2], DEFAULT_BBOX[3]]],
+        { padding: 40, duration: 0 }
+      );
+    }
+
+    map.on("moveend", function () {
+      localStorage.setItem(
+        VIEW_KEY,
+        JSON.stringify({ center: map.getCenter().toArray(), zoom: map.getZoom() })
+      );
     });
 
     function currentBbox() {

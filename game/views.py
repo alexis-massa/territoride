@@ -3,6 +3,8 @@ from typing import Any
 
 import gpxpy
 import h3
+import markdown
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.gis.geos import LineString, Polygon
@@ -233,6 +235,19 @@ def rules_view(request: HttpRequest) -> HttpResponse:
             "cell_value": TERRITORY_CELL_VALUE,
         },
     )
+
+
+def changelog_view(request: HttpRequest) -> HttpResponse:
+    """Render the project changelog for players.
+
+    Args:
+        request: The incoming request.
+
+    Returns:
+        The rendered changelog page.
+    """
+    text = (settings.BASE_DIR / "CHANGELOG.md").read_text()
+    return render(request, "game/changelog.html", {"changelog_html": markdown.markdown(text)})
 
 
 def leaderboard_view(request: HttpRequest) -> HttpResponse:

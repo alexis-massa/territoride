@@ -1,0 +1,25 @@
+#!/bin/sh
+# Appends the just-made commit's subject to CHANGELOG.md's [Unreleased]
+# section, then folds that update into the same commit via --amend.
+# Guarded against its own amend re-triggering this hook.
+
+if [ -n "$SKIP_CHANGELOG_HOOK" ]; then
+  exit 0
+fi
+
+if [ ! -f CHANGELOG.md ] || ! grep -q "^## \[Unreleased\]" CHANGELOG.md; then
+  exit 0
+fi
+
+SUBJECT=$(git log -1 --format=%s)
+
+# No commit hash in the line: amending this commit to fold in the
+# changelog update changes its hash, so recording the pre-amend one
+# would just reference a commit that no longer exists.
+awk -v line="- ${SUBJECT}" '
+  /^## \[Unreleased\]/ && !done { print; print line; done=1; next }
+  { print }
+' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
+
+git add CHANGELOG.md
+SKIP_CHANGELOG_HOOK=1 git commit --amend --no-edit --no-verify --quiet

@@ -11,11 +11,11 @@ from django.views.decorators.http import require_POST
 
 from accounts.models import User
 
-from .capture import capture_pois, capture_territory
+from .capture import LOOP_CLOSE_TOLERANCE_M, POI_CAPTURE_RADIUS_M, capture_pois, capture_territory
 from .decay import DECAY_THRESHOLD_DAYS, current_value, elapsed_days
 from .grid import cell_boundary, cells_in_bbox
 from .models import POI, Activity, TerritoryCell
-from .scoring import leaderboard, player_color
+from .scoring import TERRITORY_CELL_VALUE, leaderboard, player_color
 
 BBOX_PARAM = "bbox"
 
@@ -180,6 +180,27 @@ def pois_geojson_view(request: HttpRequest) -> HttpResponse:
     pois = POI.objects.filter(location__within=bbox).select_related("owner")
     features = [_poi_feature(poi) for poi in pois]
     return JsonResponse({"type": "FeatureCollection", "features": features})
+
+
+def rules_view(request: HttpRequest) -> HttpResponse:
+    """Render the player-facing rules and security info page.
+
+    Args:
+        request: The incoming request.
+
+    Returns:
+        The rendered rules page.
+    """
+    return render(
+        request,
+        "game/rules.html",
+        {
+            "loop_tolerance_m": LOOP_CLOSE_TOLERANCE_M,
+            "poi_radius_m": POI_CAPTURE_RADIUS_M,
+            "decay_days": DECAY_THRESHOLD_DAYS,
+            "cell_value": TERRITORY_CELL_VALUE,
+        },
+    )
 
 
 def leaderboard_view(request: HttpRequest) -> HttpResponse:

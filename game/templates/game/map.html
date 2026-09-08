@@ -21,15 +21,55 @@
       border-radius: 50%;
       flex-shrink: 0;
     }
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      z-index: 10;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .modal-card { max-width: 26rem; }
+    .modal-card p { line-height: 1.5; }
+    #welcome-dismiss {
+      background: #1a1a1a;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 0.6rem 1.2rem;
+      font-size: 0.95rem;
+      cursor: pointer;
+      margin-top: 0.5rem;
+    }
   </style>
 {% endblock %}
 
 {% block body %}
   {% include "accounts/_topbar.html" %}
   {% include "game/_layers_menu.html" %}
+  <div id="welcome-modal" class="modal-overlay">
+    <div class="modal-card card">
+      <h2 style="margin-top: 0;">Welcome to TerritoRide</h2>
+      <p>Ride your bike, claim hexagonal tiles and mountain passes, and hold them before someone else rides through. Everything fades over {{ decay_threshold_days }} days, so keep moving.</p>
+      <p>Connecting Strava uses their own login page - we never see your password, only ever request read access, and store your connection encrypted.</p>
+      <p><a href="{% url 'rules' %}">Full rules &amp; security details</a></p>
+      <button id="welcome-dismiss">Got it</button>
+    </div>
+  </div>
   <div id="map"></div>
   <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
   <script>
+    var WELCOME_SEEN_KEY = "welcome-seen";
+    if (!localStorage.getItem(WELCOME_SEEN_KEY)) {
+      document.getElementById("welcome-modal").style.display = "flex";
+    }
+    document.getElementById("welcome-dismiss").addEventListener("click", function () {
+      localStorage.setItem(WELCOME_SEEN_KEY, "true");
+      document.getElementById("welcome-modal").style.display = "none";
+    });
+
     var EMPTY_FC = { type: "FeatureCollection", features: [] };
     var DECAY_THRESHOLD_DAYS = {{ decay_threshold_days }};
 

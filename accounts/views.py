@@ -1,3 +1,4 @@
+import contextlib
 import json
 import secrets
 from datetime import UTC, datetime, timedelta
@@ -7,7 +8,7 @@ from urllib.parse import urlencode
 import requests
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import login
+from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.http import (
     HttpRequest,
@@ -22,6 +23,7 @@ from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+from game.capture import recapture_all
 from game.decay import DECAY_THRESHOLD_DAYS
 from game.models import POI, Activity
 from game.scoring import leaderboard, player_color, player_score, score_split_pct
@@ -33,6 +35,7 @@ STRAVA_AUTHORIZE_URL = "https://www.strava.com/oauth/authorize"
 STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token"
 STRAVA_ACTIVITIES_URL = "https://www.strava.com/api/v3/athlete/activities"
 STRAVA_ACTIVITY_DETAIL_URL = "https://www.strava.com/api/v3/activities"
+STRAVA_DEAUTHORIZE_URL = "https://www.strava.com/oauth/deauthorize"
 STRAVA_PAGE_SIZE = 30
 
 OAUTH_STATE_SESSION_KEY = "strava_oauth_state"
@@ -290,6 +293,38 @@ def strava_webhook_view(request: HttpRequest) -> HttpResponse:
 
     _handle_strava_event(json.loads(request.body))
     return HttpResponse()
+
+
+@login_required
+@require_POST
+def delete_account_view(request: HttpRequest) -> HttpResponse:
+    """Delete the player's account: revoke Strava access, wipe their data,
+    and let any surviving activity reclaim what they held.
+
+    Args:
+        request: The incoming request.
+
+    Returns:
+        A redirect to the map, logged out, with a status message.
+    """
+    assert isinstance(request.user, User)
+    user = request.user
+
+    if user.strava_access_token:
+        with contextlib.suppress(requests.RequestException):
+            requests.post(
+                STRAVA_DEAUTHORIZE_URL,
+                data={"access_token": user.strava_access_token},
+                timeout=10,
+            )
+
+    username = user.username
+    user.delete()
+    recapture_all()
+    logout(request)
+
+    messages.success(request, f"Account {username!r} deleted.")
+    return redirect("map")
 
 
 @login_required

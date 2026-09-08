@@ -22,6 +22,16 @@
     }
     .pass-row:last-child { border-bottom: none; }
     .pass-altitude { color: #7a5230; font-weight: 600; }
+    .danger-zone { text-align: center; }
+    #delete-account {
+      background: none;
+      border: none;
+      color: #999;
+      font-size: 0.85rem;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+    #delete-account:hover { color: #c0392b; }
   </style>
 {% endblock %}
 
@@ -63,6 +73,17 @@
       {% else %}
         <p>No passes claimed yet.</p>
       {% endif %}
+    </div>
+
+    <div class="danger-zone">
+      <form
+        method="post"
+        action="{% url 'accounts:delete_account' %}"
+        onsubmit="return confirm('Delete your account? This revokes Strava access, deletes your activities, and releases your territory permanently. This cannot be undone.');"
+      >
+        {% csrf_token %}
+        <button type="submit" id="delete-account">Delete my account</button>
+      </form>
     </div>
   </div>
 {% endblock %}

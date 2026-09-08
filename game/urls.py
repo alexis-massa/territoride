@@ -9,5 +9,6 @@ urlpatterns = [
     path("routes.geojson", views.routes_geojson_view, name="routes_geojson"),
     path("pois.geojson", views.pois_geojson_view, name="pois_geojson"),
     path("leaderboard/", views.leaderboard_view, name="leaderboard"),
+    path("rules/", views.rules_view, name="rules"),
     path("import-activity/", views.import_activity_view, name="import_activity"),
 ]

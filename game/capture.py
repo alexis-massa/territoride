@@ -111,3 +111,23 @@ def recapture_all() -> tuple[int, int]:
         cells += capture_territory(activity)
         pois += capture_pois(activity)
     return cells, pois
+
+
+def release_activity(activity: Activity) -> None:
+    """Release everything an activity holds, then delete it.
+
+    Deleting just the Activity row (e.g. via cascade/SET_NULL) only clears
+    captured_by/claimed_by - owner points at the player directly, who still
+    exists, so cells/POIs would otherwise stay stuck showing an owner with
+    nothing behind the claim. recapture_all() afterward lets any other
+    surviving activity that also touched the same ground reclaim it.
+
+    Args:
+        activity: The activity to remove.
+    """
+    TerritoryCell.objects.filter(captured_by=activity).update(
+        owner=None, captured_by=None, captured_at=None
+    )
+    POI.objects.filter(claimed_by=activity).update(owner=None, claimed_by=None, claimed_at=None)
+    activity.delete()
+    recapture_all()

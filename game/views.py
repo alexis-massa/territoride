@@ -125,7 +125,7 @@ def _territory_feature(cell: TerritoryCell) -> dict[str, Any]:
             "owner": cell.owner.username,
             "color": player_color(cell.owner.username),
             "captured_at": cell.captured_at.isoformat(),
-            "age_days": round(elapsed_days(cell.captured_at), 1),
+            "age_days": elapsed_days(cell.captured_at),
             "remaining": current_value(1.0, cell.captured_at),
         },
     }
@@ -188,7 +188,7 @@ def _poi_feature(poi: POI) -> dict[str, Any]:
             "owner": poi.owner.username if poi.owner else None,
             "color": player_color(poi.owner.username) if poi.owner else None,
             "captured_at": poi.claimed_at.isoformat() if poi.claimed_at else None,
-            "age_days": round(elapsed_days(poi.claimed_at), 1) if poi.claimed_at else None,
+            "age_days": elapsed_days(poi.claimed_at) if poi.claimed_at else None,
             "remaining": current_value(1.0, poi.claimed_at) if poi.claimed_at else None,
         },
     }

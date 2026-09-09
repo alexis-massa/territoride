@@ -6,6 +6,9 @@ appended automatically to `[Unreleased]` by a commit hook (see
 [README.md](README.md)); versions are cut and tagged on `main` by hand.
 
 ## [Unreleased]
+- chore: don't generate changelog during rebase and cherry-pick
+- feat: release tiles on activity deletion
+- feat: score based on whole days + compass on map
 - feat: show point calculation breakdown and per-ride detail on leaderboard
 - feat: add setup.sh for one-command dev environment setup
 - chore: add changelog, MIT license, and changelog commit hook

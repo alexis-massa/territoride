@@ -23,7 +23,7 @@ from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
-from game.capture import recapture_all
+from game.capture import recapture_all, release_activity
 from game.decay import DECAY_THRESHOLD_DAYS
 from game.models import POI, Activity
 from game.scoring import leaderboard, player_color, player_score, score_split_pct
@@ -258,7 +258,9 @@ def _handle_strava_event(event: dict[str, Any]) -> None:
         return
 
     if event.get("aspect_type") == "delete":
-        Activity.objects.filter(strava_activity_id=event["object_id"]).delete()
+        activity = Activity.objects.filter(strava_activity_id=event["object_id"]).first()
+        if activity is not None:
+            release_activity(activity)
         return
 
     if event.get("aspect_type") not in ("create", "update"):

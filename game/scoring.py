@@ -99,7 +99,7 @@ def player_capture_detail(user: User) -> dict[str, list[dict[str, Any]]]:
             {
                 "activity_name": g["captured_by__name"] or "Unknown ride",
                 "captured_at": captured_at,
-                "age_days": round(elapsed_days(captured_at), 1),
+                "age_days": elapsed_days(captured_at),
                 "cell_count": g["cell_count"],
                 "points": round(current_value(TERRITORY_CELL_VALUE, captured_at) * g["cell_count"]),
             }
@@ -113,7 +113,7 @@ def player_capture_detail(user: User) -> dict[str, list[dict[str, Any]]]:
                 "name": poi.name,
                 "altitude_m": poi.altitude_m,
                 "claimed_at": poi.claimed_at,
-                "age_days": round(elapsed_days(poi.claimed_at), 1),
+                "age_days": elapsed_days(poi.claimed_at),
                 "points": round(current_value(poi.altitude_m or 0, poi.claimed_at)),
             }
         )

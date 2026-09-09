@@ -2,6 +2,13 @@
 # Appends the just-made commit's subject to CHANGELOG.md's [Unreleased]
 # section, then folds that update into the same commit via --amend.
 # Guarded against its own amend re-triggering this hook.
+#
+# Skipped entirely during rebases/cherry-picks
+
+GIT_DIR=$(git rev-parse --git-dir)
+if [ -d "$GIT_DIR/rebase-merge" ] || [ -d "$GIT_DIR/rebase-apply" ] || [ -f "$GIT_DIR/CHERRY_PICK_HEAD" ]; then
+  exit 0
+fi
 
 if [ -n "$SKIP_CHANGELOG_HOOK" ]; then
   exit 0

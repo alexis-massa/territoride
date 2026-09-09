@@ -8,16 +8,16 @@ from .models import POI, Activity, TerritoryCell
 DECAY_THRESHOLD_DAYS = 30
 
 
-def elapsed_days(captured_at: datetime) -> float:
-    """Days elapsed since a capture.
+def elapsed_days(captured_at: datetime) -> int:
+    """Whole days elapsed since a capture.
 
     Args:
         captured_at: When the capture happened.
 
     Returns:
-        Elapsed time in days.
+        Days elapsed.
     """
-    return (timezone.now() - captured_at).total_seconds() / 86400
+    return (timezone.now().date() - captured_at.date()).days
 
 
 def current_value(base_value: float, captured_at: datetime | None) -> float:

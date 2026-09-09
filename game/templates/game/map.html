@@ -76,7 +76,7 @@
     function decaySuffix(props) {
       return (
         " · " +
-        Math.floor(props.age_days) +
+        props.age_days +
         "/" +
         DECAY_THRESHOLD_DAYS +
         " days · captured " +
@@ -123,6 +123,9 @@
       center: savedView ? savedView.center : [5.8, 45.4], // Rhone-Alpes
       zoom: savedView ? savedView.zoom : 8,
     });
+
+    // Compass only
+    map.addControl(new maplibregl.NavigationControl({ showZoom: false, showCompass: true }), "top-left");
 
     if (!savedView && DEFAULT_BBOX) {
       map.fitBounds(

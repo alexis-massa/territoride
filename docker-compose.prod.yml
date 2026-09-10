@@ -1,6 +1,14 @@
 services:
   db:
     ports: !reset []
+    networks:
+      default:
+      # Lets other apps on this host (e.g. fittracker) reach this Postgres
+      # instance directly, via a dedicated database/role - not the same
+      # database territoride itself uses.
+      data:
+        aliases:
+          - territoride-db
 
   app:
     command: uv run gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2
@@ -17,3 +25,5 @@ services:
 networks:
   web:
     external: true
+  data:
+    name: data

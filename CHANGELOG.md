@@ -6,6 +6,7 @@ appended automatically to `[Unreleased]` by a commit hook (see
 [README.md](README.md)); versions are cut and tagged on `main` by hand.
 
 ## [Unreleased]
+- chore: make db reachable from other apps
 - chore: cut v0.2.0
 
 ## [0.2.0] - 2026-09-10

@@ -13,6 +13,8 @@ class Activity(models.Model):
     track = gis_models.LineStringField(srid=4326)
     recorded_at = models.DateTimeField()
     strava_activity_id = models.BigIntegerField(null=True, blank=True, unique=True)
+    sport_type = models.CharField(max_length=30, blank=True, default="")
+    distance_m = models.IntegerField(null=True, blank=True)
 
     def __str__(self) -> str:
         """One-line label for admin/debug output.

@@ -31,8 +31,16 @@
       <h2 style="margin-top: 0;">The math</h2>
       <ul class="rules-list">
         <li>Each tile is worth {{ cell_value }} points at the moment you capture it. Each pass is worth its altitude in meters.</li>
+        <li>
+          That base value is multiplied by how you got there - cycling covers far more ground per hour than
+          walking or swimming, so slower sports are weighted up to stay fair:
+          {% for label, multiplier in sport_multipliers %}{{ label }} {{ multiplier|floatformat:0 }}&times;{% if not forloop.last %}, {% endif %}{% endfor %}.
+          Anything else (or a manually-uploaded GPX file, which carries no sport data) defaults to {{ default_multiplier|floatformat:0 }}&times;.
+        </li>
+        <li>Swimming is the one exception: a pool is much smaller than a tile, so a flat per-tile multiplier would score a quick dip the same as a long swim. Swim tiles are valued by distance instead - <code>distance_km &times; {{ cell_value }} &times; 8</code> total, split evenly if a swim ever spans more than one tile.</li>
         <li>From there, value decays linearly: <code>value &times; (1 &minus; days_held / {{ decay_days }})</code> - so a tile captured 15 days ago is worth half what it was on day one, and 0 by day {{ decay_days }}.</li>
         <li>Your total score is just the sum of every tile and pass you currently hold, decay already applied - nothing else factors in. The <a href="{% url 'leaderboard' %}">leaderboard</a> shows exactly this breakdown for every player.</li>
+        <li>The multiplier only affects value, not ownership - anyone can still steal any tile regardless of sport, including a high-multiplier one. That's a deliberate tradeoff, not an oversight.</li>
       </ul>
     </div>
 

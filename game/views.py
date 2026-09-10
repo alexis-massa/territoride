@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Any
 
 import gpxpy
@@ -18,7 +19,13 @@ from .capture import LOOP_CLOSE_TOLERANCE_M, POI_CAPTURE_RADIUS_M, capture_pois,
 from .decay import DECAY_THRESHOLD_DAYS, current_value, elapsed_days
 from .grid import cell_boundary, cells_in_bbox
 from .models import POI, Activity, TerritoryCell
-from .scoring import TERRITORY_CELL_VALUE, leaderboard, player_color
+from .scoring import (
+    DEFAULT_SPORT_MULTIPLIER,
+    SPORT_MULTIPLIERS,
+    TERRITORY_CELL_VALUE,
+    leaderboard,
+    player_color,
+)
 
 BBOX_PARAM = "bbox"
 
@@ -216,6 +223,18 @@ def pois_geojson_view(request: HttpRequest) -> HttpResponse:
     return JsonResponse({"type": "FeatureCollection", "features": features})
 
 
+def _humanize_sport(sport_type: str) -> str:
+    """Turn a Strava sport_type code into a readable label.
+
+    Args:
+        sport_type: A Strava sport_type value, e.g. "TrailRun".
+
+    Returns:
+        A space-separated label, e.g. "Trail Run".
+    """
+    return re.sub(r"(?<=[a-z])(?=[A-Z])", " ", sport_type)
+
+
 def rules_view(request: HttpRequest) -> HttpResponse:
     """Render the player-facing rules and security info page.
 
@@ -225,6 +244,10 @@ def rules_view(request: HttpRequest) -> HttpResponse:
     Returns:
         The rendered rules page.
     """
+    sport_multipliers = [("Cycling", DEFAULT_SPORT_MULTIPLIER)] + sorted(
+        ((_humanize_sport(sport), multiplier) for sport, multiplier in SPORT_MULTIPLIERS.items()),
+        key=lambda pair: pair[1],
+    )
     return render(
         request,
         "game/rules.html",
@@ -233,6 +256,8 @@ def rules_view(request: HttpRequest) -> HttpResponse:
             "poi_radius_m": POI_CAPTURE_RADIUS_M,
             "decay_days": DECAY_THRESHOLD_DAYS,
             "cell_value": TERRITORY_CELL_VALUE,
+            "default_multiplier": DEFAULT_SPORT_MULTIPLIER,
+            "sport_multipliers": sport_multipliers,
         },
     )
 

@@ -69,10 +69,13 @@ def import_from_strava(user: User, strava_activities: list[dict[str, Any]]) -> t
         if len(points) < 2:
             continue
 
+        distance = raw.get("distance")
         activity = Activity.objects.create(
             user=user,
             strava_activity_id=strava_id,
             name=raw["name"],
+            sport_type=raw.get("sport_type", ""),
+            distance_m=round(distance) if distance is not None else None,
             track=LineString([(lng, lat) for lat, lng in points], srid=4326),
             recorded_at=datetime.fromisoformat(raw["start_date"]),
         )

@@ -1,3 +1,0 @@
-{$ALLOWED_HOSTS} {
-	reverse_proxy app:8000
-}

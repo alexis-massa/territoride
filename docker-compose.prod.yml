@@ -3,22 +3,17 @@ services:
     ports: !reset []
 
   app:
-    command: uv run gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3
+    command: uv run gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2
     ports: !reset []
+    networks:
+      default:
+      web:
+    labels:
+      - "caddy=${ALLOWED_HOSTS}"
+      - "caddy.reverse_proxy={{upstreams 8000}}"
 
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-      - caddy_data:/data
-    env_file:
-      - .env
-    depends_on:
-      - app
-
-volumes:
-  caddy_data:
+# Reverse-proxied by the shared Caddy in the sibling `caddy-docker-proxy` repo, which
+# discovers this service via the labels above - see that repo for setup.
+networks:
+  web:
+    external: true

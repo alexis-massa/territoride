@@ -110,7 +110,7 @@
                 <h3>Territory captures</h3>
                 {% for g in row.detail.territory %}
                   <div class="detail-row">
-                    <span>{{ g.activity_name }} - {{ g.cell_count }} cell{{ g.cell_count|pluralize }}</span>
+                    <span>{{ g.activity_name }} - {{ g.cell_count }} cell{{ g.cell_count|pluralize }}{% if g.multiplier != 1 %} ({{ g.multiplier|floatformat:0 }}&times;){% endif %}</span>
                     <span class="detail-meta">{{ g.age_days|floatformat:0 }}d ago &middot; {{ g.points }} pts</span>
                   </div>
                 {% endfor %}
@@ -119,7 +119,7 @@
                 <h3>Passes</h3>
                 {% for p in row.detail.pois %}
                   <div class="detail-row">
-                    <span>{{ p.name }} ({{ p.altitude_m|default:"?" }}m)</span>
+                    <span>{{ p.name }} ({{ p.altitude_m|default:"?" }}m){% if p.multiplier != 1 %} ({{ p.multiplier|floatformat:0 }}&times;){% endif %}</span>
                     <span class="detail-meta">{{ p.age_days|floatformat:0 }}d ago &middot; {{ p.points }} pts</span>
                   </div>
                 {% endfor %}

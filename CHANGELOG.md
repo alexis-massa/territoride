@@ -6,6 +6,10 @@ appended automatically to `[Unreleased]` by a commit hook (see
 [README.md](README.md)); versions are cut and tagged on `main` by hand.
 
 ## [Unreleased]
+- chore: cut v0.2.0
+
+## [0.2.0] - 2026-09-10
+- feat: score tiles/passes by sport, swimming weighted by distance
 - chore: revise caddy setup and reduce gunicorn worker count
 - chore: don't generate changelog during rebase and cherry-pick
 - feat: release tiles on activity deletion

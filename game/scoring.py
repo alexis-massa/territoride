@@ -6,7 +6,7 @@ from django.db.models import Count
 from accounts.models import User
 
 from .decay import current_value, elapsed_days
-from .models import POI, TerritoryCell
+from .models import POI, Activity, TerritoryCell
 
 # Flat value per owned cell. POIs are valued by altitude instead of a flat
 # number - a bigger pass is worth more, and we already have real elevation
@@ -14,6 +14,57 @@ from .models import POI, TerritoryCell
 TERRITORY_CELL_VALUE = 10
 
 PLAYER_COLORS = ["#2ecc71", "#e67e22", "#3498db", "#9b59b6", "#e74c3c", "#f1c40f"]
+
+# Slower sports cover less ground per hour than cycling (the reference sport)
+# so their tiles are worth proportionally more to not reward whoever bikes most.
+# Ratios are cycling's avg speed (20km/h) divided by each sport's avg speed, rounded.
+# Anything unmapped is 1x.
+DEFAULT_SPORT_MULTIPLIER = 1.0
+SPORT_MULTIPLIERS = {
+    "Run": 2.0,
+    "TrailRun": 2.0,
+    "Walk": 5.0,
+    "Hike": 5.0,
+    "Swim": 8.0,
+    "OpenWaterSwim": 8.0,
+}
+
+SWIM_SPORT_TYPES = {"Swim", "OpenWaterSwim"}
+
+
+def sport_multiplier(activity: Activity | None) -> float:
+    """Point multiplier for the sport that made a capture.
+
+    Args:
+        activity: The capturing activity, or None.
+
+    Returns:
+        The multiplier - 1x (cycling-equivalent) if the activity is missing
+        or its sport isn't mapped (e.g. a manually-uploaded GPX file, which
+        carries no reliable sport data).
+    """
+    if activity is None:
+        return DEFAULT_SPORT_MULTIPLIER
+    return SPORT_MULTIPLIERS.get(activity.sport_type, DEFAULT_SPORT_MULTIPLIER)
+
+
+def _territory_group_value(
+    sport_type: str | None, distance_m: int | None, cell_count: int
+) -> float:
+    """Total base value (before decay) for cells captured together by one activity.
+
+    Args:
+        sport_type: The capturing activity's Strava sport type.
+        distance_m: The capturing activity's distance in meters, if known.
+        cell_count: How many cells are in this group.
+
+    Returns:
+        The group's total base value (not per-cell).
+    """
+    if sport_type in SWIM_SPORT_TYPES:
+        return ((distance_m or 0) / 1000) * TERRITORY_CELL_VALUE * SPORT_MULTIPLIERS["Swim"]
+    multiplier = SPORT_MULTIPLIERS.get(sport_type or "", DEFAULT_SPORT_MULTIPLIER)
+    return TERRITORY_CELL_VALUE * multiplier * cell_count
 
 
 def player_color(username: str) -> str:
@@ -40,12 +91,23 @@ def player_score(user: User) -> dict[str, int]:
     Returns:
         A dict with "territory_points", "poi_points", and "total".
     """
+    territory_groups = (
+        TerritoryCell.objects.filter(owner=user)
+        .values("captured_by__sport_type", "captured_by__distance_m", "captured_at")
+        .annotate(cell_count=Count("cell_id"))
+    )
     territory_points = sum(
-        current_value(TERRITORY_CELL_VALUE, cell.captured_at)
-        for cell in TerritoryCell.objects.filter(owner=user)
+        current_value(
+            _territory_group_value(
+                g["captured_by__sport_type"], g["captured_by__distance_m"], g["cell_count"]
+            ),
+            g["captured_at"],
+        )
+        for g in territory_groups
     )
     poi_points = sum(
-        current_value(poi.altitude_m or 0, poi.claimed_at) for poi in POI.objects.filter(owner=user)
+        current_value((poi.altitude_m or 0) * sport_multiplier(poi.claimed_by), poi.claimed_at)
+        for poi in POI.objects.filter(owner=user).select_related("claimed_by")
     )
     return {
         "territory_points": round(territory_points),
@@ -81,13 +143,16 @@ def player_capture_detail(user: User) -> dict[str, list[dict[str, Any]]]:
 
     Returns:
         "territory": groups sharing a capture, newest first, each with
-            activity_name, captured_at, age_days, cell_count, points.
+            activity_name, sport_type, multiplier, captured_at, age_days,
+            cell_count, points.
         "pois": individually claimed passes, newest first, each with name,
-            altitude_m, claimed_at, age_days, points.
+            altitude_m, sport_type, multiplier, claimed_at, age_days, points.
     """
     groups = (
         TerritoryCell.objects.filter(owner=user)
-        .values("captured_by__name", "captured_at")
+        .values(
+            "captured_by__name", "captured_by__sport_type", "captured_by__distance_m", "captured_at"
+        )
         .annotate(cell_count=Count("cell_id"))
         .order_by("-captured_at")
     )
@@ -95,26 +160,35 @@ def player_capture_detail(user: User) -> dict[str, list[dict[str, Any]]]:
     for g in groups:
         captured_at = g["captured_at"]
         assert captured_at is not None
+        sport_type = g["captured_by__sport_type"]
+        distance_m = g["captured_by__distance_m"]
+        multiplier = SPORT_MULTIPLIERS.get(sport_type or "", DEFAULT_SPORT_MULTIPLIER)
+        group_value = _territory_group_value(sport_type, distance_m, g["cell_count"])
         territory.append(
             {
                 "activity_name": g["captured_by__name"] or "Unknown ride",
+                "sport_type": sport_type,
+                "multiplier": multiplier,
                 "captured_at": captured_at,
                 "age_days": elapsed_days(captured_at),
                 "cell_count": g["cell_count"],
-                "points": round(current_value(TERRITORY_CELL_VALUE, captured_at) * g["cell_count"]),
+                "points": round(current_value(group_value, captured_at)),
             }
         )
 
     pois: list[dict[str, Any]] = []
-    for poi in POI.objects.filter(owner=user).order_by("-claimed_at"):
+    for poi in POI.objects.filter(owner=user).select_related("claimed_by").order_by("-claimed_at"):
         assert poi.claimed_at is not None
+        multiplier = sport_multiplier(poi.claimed_by)
         pois.append(
             {
                 "name": poi.name,
                 "altitude_m": poi.altitude_m,
+                "sport_type": poi.claimed_by.sport_type if poi.claimed_by else "",
+                "multiplier": multiplier,
                 "claimed_at": poi.claimed_at,
                 "age_days": elapsed_days(poi.claimed_at),
-                "points": round(current_value(poi.altitude_m or 0, poi.claimed_at)),
+                "points": round(current_value((poi.altitude_m or 0) * multiplier, poi.claimed_at)),
             }
         )
     return {"territory": territory, "pois": pois}

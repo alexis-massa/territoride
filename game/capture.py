@@ -53,6 +53,32 @@ def captured_cells(points: list[tuple[float, float]]) -> set[str]:
     return cells
 
 
+def capture_point(activity: Activity, lat: float, lng: float) -> int:
+    """Claim the single cell at a point.
+
+    For activities with no GPS track at all (pool swim), bypasses
+    touched_cells/is_loop.
+
+    Args:
+        activity: The capturing activity.
+        lat: Latitude of the point.
+        lng: Longitude of the point.
+
+    Returns:
+        Always 1 (one cell captured).
+    """
+    cell_id = h3.latlng_to_cell(lat, lng, RESOLUTION)
+    TerritoryCell.objects.update_or_create(
+        cell_id=cell_id,
+        defaults={
+            "owner": activity.user,
+            "captured_by": activity,
+            "captured_at": activity.recorded_at,
+        },
+    )
+    return 1
+
+
 def capture_territory(activity: Activity) -> int:
     """Claim every cell an activity captures, for that activity's owner.
 

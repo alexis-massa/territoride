@@ -83,7 +83,10 @@ def player_score(user: User) -> dict[str, int]:
     """Current point total for a player, broken down by source.
 
     Reflects decay (see decay.py) but not exploration bonuses - those need
-    capture history, which isn't tracked yet.
+    capture history, which isn't tracked yet. Includes trackless swims
+    (no GPS fix at all) counted under territory_points even though they
+    hold no cell - see _territory_group_value, which values swims purely
+    by distance regardless of cell count.
 
     Args:
         user: The player to score.
@@ -104,6 +107,10 @@ def player_score(user: User) -> dict[str, int]:
             g["captured_at"],
         )
         for g in territory_groups
+    )
+    territory_points += sum(
+        current_value(_territory_group_value(a.sport_type, a.distance_m, 0), a.recorded_at)
+        for a in Activity.objects.filter(user=user, track__isnull=True)
     )
     poi_points = sum(
         current_value((poi.altitude_m or 0) * sport_multiplier(poi.claimed_by), poi.claimed_at)
@@ -148,14 +155,9 @@ def player_capture_detail(user: User) -> dict[str, list[dict[str, Any]]]:
         "pois": individually claimed passes, newest first, each with name,
             altitude_m, sport_type, multiplier, claimed_at, age_days, points.
     """
-    groups = (
-        TerritoryCell.objects.filter(owner=user)
-        .values(
-            "captured_by__name", "captured_by__sport_type", "captured_by__distance_m", "captured_at"
-        )
-        .annotate(cell_count=Count("cell_id"))
-        .order_by("-captured_at")
-    )
+    groups = TerritoryCell.objects.filter(owner=user).values(
+        "captured_by__name", "captured_by__sport_type", "captured_by__distance_m", "captured_at"
+    ).annotate(cell_count=Count("cell_id"))
     territory: list[dict[str, Any]] = []
     for g in groups:
         captured_at = g["captured_at"]
@@ -175,6 +177,22 @@ def player_capture_detail(user: User) -> dict[str, list[dict[str, Any]]]:
                 "points": round(current_value(group_value, captured_at)),
             }
         )
+
+    for activity in Activity.objects.filter(user=user, track__isnull=True):
+        multiplier = SPORT_MULTIPLIERS.get(activity.sport_type or "", DEFAULT_SPORT_MULTIPLIER)
+        group_value = _territory_group_value(activity.sport_type, activity.distance_m, 0)
+        territory.append(
+            {
+                "activity_name": activity.name or "Unknown ride",
+                "sport_type": activity.sport_type,
+                "multiplier": multiplier,
+                "captured_at": activity.recorded_at,
+                "age_days": elapsed_days(activity.recorded_at),
+                "cell_count": 0,
+                "points": round(current_value(group_value, activity.recorded_at)),
+            }
+        )
+    territory.sort(key=lambda t: t["captured_at"], reverse=True)
 
     pois: list[dict[str, Any]] = []
     for poi in POI.objects.filter(owner=user).select_related("claimed_by").order_by("-claimed_at"):

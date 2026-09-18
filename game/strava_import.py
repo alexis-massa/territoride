@@ -7,6 +7,7 @@ from accounts.models import User
 
 from .capture import capture_point, capture_pois, capture_territory
 from .models import Activity
+from .scoring import SWIM_SPORT_TYPES
 
 
 def decode_polyline(encoded: str) -> list[tuple[float, float]]:
@@ -42,10 +43,13 @@ def decode_polyline(encoded: str) -> list[tuple[float, float]]:
 def import_from_strava(user: User, strava_activities: list[dict[str, Any]]) -> tuple[int, int, int]:
     """Create Activities from Strava activity summaries and capture territory/POIs.
 
-    Skips activities already imported and those with no location data at
-    all. Activities with no GPS track but a start location (e.g. an indoor
-    pool swim - no signal underwater, but usually a fix right before/after)
-    still capture the single tile they're in.
+    Skips activities already imported and, for non-swim sports, those with
+    no location data at all - there'd be nothing to capture or score.
+    Activities with no GPS track but a start location (e.g. an indoor pool
+    swim - no signal underwater, but usually a fix right before/after)
+    still capture the single tile they're in. Swims with no location data
+    at all (no signal the whole time) still get imported and scored by
+    distance like any other swim, they just don't hold a tile.
 
     Args:
         user: The player these activities belong to.
@@ -65,6 +69,7 @@ def import_from_strava(user: User, strava_activities: list[dict[str, Any]]) -> t
         if strava_id in known_ids:
             continue
 
+        sport_type = raw.get("sport_type", "")
         map_data = raw.get("map") or {}
         polyline = map_data.get("polyline") or map_data.get("summary_polyline")
         point_only = False
@@ -74,27 +79,33 @@ def import_from_strava(user: User, strava_activities: list[dict[str, Any]]) -> t
                 continue
         else:
             start_latlng = raw.get("start_latlng")
-            if not start_latlng or len(start_latlng) != 2:
+            if start_latlng and len(start_latlng) == 2:
+                lat, lng = start_latlng
+                points = [(lat, lng), (lat, lng)]
+                point_only = True
+            elif sport_type in SWIM_SPORT_TYPES:
+                points = None
+            else:
                 continue
-            lat, lng = start_latlng
-            points = [(lat, lng), (lat, lng)]
-            point_only = True
 
         distance = raw.get("distance")
         activity = Activity.objects.create(
             user=user,
             strava_activity_id=strava_id,
             name=raw["name"],
-            sport_type=raw.get("sport_type", ""),
+            sport_type=sport_type,
             distance_m=round(distance) if distance is not None else None,
-            track=LineString([(lng, lat) for lat, lng in points], srid=4326),
+            track=LineString([(lng, lat) for lat, lng in points], srid=4326) if points else None,
             recorded_at=datetime.fromisoformat(raw["start_date"]),
         )
         imported += 1
-        if point_only:
+        if points is None:
+            pass
+        elif point_only:
             lat, lng = points[0]
             cells += capture_point(activity, lat, lng)
         else:
             cells += capture_territory(activity)
-        pois += capture_pois(activity)
+        if activity.track is not None:
+            pois += capture_pois(activity)
     return imported, cells, pois

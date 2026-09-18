@@ -56,9 +56,6 @@ def captured_cells(points: list[tuple[float, float]]) -> set[str]:
 def capture_point(activity: Activity, lat: float, lng: float) -> int:
     """Claim the single cell at a point.
 
-    For activities with no GPS track at all (pool swim), bypasses
-    touched_cells/is_loop.
-
     Args:
         activity: The capturing activity.
         lat: Latitude of the point.
@@ -88,6 +85,7 @@ def capture_territory(activity: Activity) -> int:
     Returns:
         The number of cells captured.
     """
+    assert activity.track is not None
     points = [(lat, lng) for lng, lat in activity.track.coords]
     cells = captured_cells(points)
     for cell_id in cells:
@@ -104,9 +102,6 @@ def capture_territory(activity: Activity) -> int:
 
 def capture_pois(activity: Activity) -> int:
     """Claim every POI an activity's track passes within range of.
-
-    Loops and non-loops are treated the same here - a POI is claimed by
-    proximity to the track, never by enclosure.
 
     Args:
         activity: The activity whose track determines what it captures.
@@ -126,7 +121,8 @@ def recapture_all() -> tuple[int, int]:
     Needed after POIs are added, capture logic changes, or a player's
     activities are deleted - so any surviving activity through the same
     ground reclaims it instead of leaving it stuck at whatever was last
-    written.
+    written. Trackless activities (e.g. a fully indoor swim with no GPS fix
+    at all) hold no cell, so there's nothing to replay for them.
 
     Returns:
         (cells_captured, pois_captured) totals across every activity.
@@ -134,7 +130,13 @@ def recapture_all() -> tuple[int, int]:
     activities = list(Activity.objects.order_by("recorded_at"))
     cells = pois = 0
     for activity in activities:
-        cells += capture_territory(activity)
+        if activity.track is None:
+            continue
+        points = [(lat, lng) for lng, lat in activity.track.coords]
+        if len(set(points)) == 1:
+            cells += capture_point(activity, *points[0])
+        else:
+            cells += capture_territory(activity)
         pois += capture_pois(activity)
     return cells, pois
 

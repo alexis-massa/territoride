@@ -161,19 +161,23 @@ def routes_geojson_view(request: HttpRequest) -> HttpResponse:
     Returns:
         A GeoJSON FeatureCollection of claiming routes.
     """
-    activities = Activity.objects.filter(captured_cells__isnull=False).distinct()
-    features = [
-        {
-            "type": "Feature",
-            "geometry": json.loads(activity.track.geojson),
-            "properties": {
-                "name": activity.name,
-                "owner": activity.user.username,
-                "color": player_color(activity.user.username),
-            },
-        }
-        for activity in activities
-    ]
+    activities = Activity.objects.filter(
+        captured_cells__isnull=False, track__isnull=False
+    ).distinct()
+    features = []
+    for activity in activities:
+        assert activity.track is not None
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": json.loads(activity.track.geojson),
+                "properties": {
+                    "name": activity.name,
+                    "owner": activity.user.username,
+                    "color": player_color(activity.user.username),
+                },
+            }
+        )
     return JsonResponse({"type": "FeatureCollection", "features": features})
 
 

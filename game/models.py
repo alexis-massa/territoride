@@ -10,7 +10,7 @@ class Activity(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="activities"
     )
     name = models.CharField(max_length=255)
-    track = gis_models.LineStringField(srid=4326)
+    track = gis_models.LineStringField(srid=4326, null=True, blank=True)
     recorded_at = models.DateTimeField()
     strava_activity_id = models.BigIntegerField(null=True, blank=True, unique=True)
     sport_type = models.CharField(max_length=30, blank=True, default="")

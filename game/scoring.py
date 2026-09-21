@@ -47,8 +47,10 @@ def _territory_group_value(
 
 
 def player_color(username: str) -> str:
-    """Deterministic display color for a player, stable across requests and restarts."""
-    return PLAYER_COLORS[zlib.crc32(username.encode()) % len(PLAYER_COLORS)]
+    """Deterministic display color for a player, unique up to len(PLAYER_COLORS) players."""
+    usernames = list(User.objects.order_by("id").values_list("username", flat=True))
+    index = usernames.index(username) if username in usernames else zlib.crc32(username.encode())
+    return PLAYER_COLORS[index % len(PLAYER_COLORS)]
 
 
 def player_score(user: User) -> dict[str, int]:

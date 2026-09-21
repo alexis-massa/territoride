@@ -6,6 +6,7 @@ appended automatically to `[Unreleased]` by a commit hook (see
 [README.md](README.md)); versions are cut and tagged on `main` by hand.
 
 ## [Unreleased]
+- fix: player colors are assigned by join order, can't collide
 - fix: territory/POI capture respects recording time, not import order
 - style: trim docstrings and comments to one-liners across game and accounts
 - fix: pool swims have no GPS, get points without capturing tiles (track now optionnal)

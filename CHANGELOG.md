@@ -6,13 +6,20 @@ appended automatically to `[Unreleased]` by a commit hook (see
 [README.md](README.md)); versions are cut and tagged on `main` by hand.
 
 ## [Unreleased]
+- chore: cut v0.3.0, backfill missed v0.2.1/v0.2.2 changelog sections
+
+## [0.3.0] - 2026-09-21
 - feat: move sync/import into the profile dropdown, keep rules/leaderboard visible
 - feat: show capture breakdown on profile page
 - fix: swim points don't depend on holding the tile
 - fix: player colors are assigned by join order, can't collide
 - fix: territory/POI capture respects recording time, not import order
 - style: trim docstrings and comments to one-liners across game and accounts
+
+## [0.2.2] - 2026-09-18
 - fix: pool swims have no GPS, get points without capturing tiles (track now optionnal)
+
+## [0.2.1] - 2026-09-11
 - fix: capture the single tile for activities with no GPS track
 - chore: make db reachable from other apps
 - chore: cut v0.2.0

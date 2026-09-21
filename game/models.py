@@ -17,11 +17,7 @@ class Activity(models.Model):
     distance_m = models.IntegerField(null=True, blank=True)
 
     def __str__(self) -> str:
-        """One-line label for admin/debug output.
-
-        Returns:
-            The activity name.
-        """
+        """Admin/debug label."""
         return self.name
 
 
@@ -40,11 +36,7 @@ class POI(models.Model):
     claimed_at = models.DateTimeField(null=True)
 
     def __str__(self) -> str:
-        """One-line label for admin/debug output.
-
-        Returns:
-            The POI's name.
-        """
+        """Admin/debug label."""
         return self.name
 
 
@@ -64,9 +56,5 @@ class TerritoryCell(models.Model):
     captured_at = models.DateTimeField(null=True)
 
     def __str__(self) -> str:
-        """One-line label for admin/debug output.
-
-        Returns:
-            The cell id and current owner, if any.
-        """
+        """Admin/debug label."""
         return f"{self.cell_id} ({self.owner or 'unclaimed'})"

@@ -11,14 +11,7 @@ from .scoring import SWIM_SPORT_TYPES
 
 
 def decode_polyline(encoded: str) -> list[tuple[float, float]]:
-    """Decode a Google encoded polyline into ordered (lat, lng) points.
-
-    Args:
-        encoded: The encoded polyline string, as returned by Strava.
-
-    Returns:
-        Ordered (lat, lng) points.
-    """
+    """Decode a Google encoded polyline (Strava's format) into ordered (lat, lng) points."""
     points = []
     index = lat = lng = 0
     while index < len(encoded):
@@ -41,22 +34,13 @@ def decode_polyline(encoded: str) -> list[tuple[float, float]]:
 
 
 def import_from_strava(user: User, strava_activities: list[dict[str, Any]]) -> tuple[int, int, int]:
-    """Create Activities from Strava activity summaries and capture territory/POIs.
+    """Create Activities from Strava summaries and capture territory/POIs.
 
-    Skips activities already imported and, for non-swim sports, those with
-    no location data at all - there'd be nothing to capture or score.
-    Activities with no GPS track but a start location (e.g. an indoor pool
-    swim - no signal underwater, but usually a fix right before/after)
-    still capture the single tile they're in. Swims with no location data
-    at all (no signal the whole time) still get imported and scored by
-    distance like any other swim, they just don't hold a tile.
-
-    Args:
-        user: The player these activities belong to.
-        strava_activities: Raw activity summaries from Strava's list-activities API.
-
-    Returns:
-        (imported_count, cells_captured, pois_captured).
+    Skips already-imported activities and, for non-swim sports, ones with no
+    location data at all. A start_latlng but no polyline (e.g. a pool swim -
+    signal before/after but not underwater) still captures its one tile.
+    A swim with no location data at all still gets imported and scored by
+    distance, it just doesn't hold a tile.
     """
     known_ids = set(
         Activity.objects.filter(strava_activity_id__isnull=False).values_list(

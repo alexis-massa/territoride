@@ -8,17 +8,10 @@ from accounts.models import User
 from .decay import current_value, elapsed_days
 from .models import POI, Activity, TerritoryCell
 
-# Flat value per owned cell. POIs are valued by altitude instead of a flat
-# number - a bigger pass is worth more, and we already have real elevation
-# data for most of them.
 TERRITORY_CELL_VALUE = 10
 
 PLAYER_COLORS = ["#2ecc71", "#e67e22", "#3498db", "#9b59b6", "#e74c3c", "#f1c40f"]
 
-# Slower sports cover less ground per hour than cycling (the reference sport)
-# so their tiles are worth proportionally more to not reward whoever bikes most.
-# Ratios are cycling's avg speed (20km/h) divided by each sport's avg speed, rounded.
-# Anything unmapped is 1x.
 DEFAULT_SPORT_MULTIPLIER = 1.0
 SPORT_MULTIPLIERS = {
     "Run": 2.0,
@@ -33,16 +26,7 @@ SWIM_SPORT_TYPES = {"Swim", "OpenWaterSwim"}
 
 
 def sport_multiplier(activity: Activity | None) -> float:
-    """Point multiplier for the sport that made a capture.
-
-    Args:
-        activity: The capturing activity, or None.
-
-    Returns:
-        The multiplier - 1x (cycling-equivalent) if the activity is missing
-        or its sport isn't mapped (e.g. a manually-uploaded GPX file, which
-        carries no reliable sport data).
-    """
+    """Point multiplier for the sport that made a capture, 1x if unknown."""
     if activity is None:
         return DEFAULT_SPORT_MULTIPLIER
     return SPORT_MULTIPLIERS.get(activity.sport_type, DEFAULT_SPORT_MULTIPLIER)
@@ -51,15 +35,10 @@ def sport_multiplier(activity: Activity | None) -> float:
 def _territory_group_value(
     sport_type: str | None, distance_m: int | None, cell_count: int
 ) -> float:
-    """Total base value (before decay) for cells captured together by one activity.
+    """Base value (before decay) for cells captured together by one activity.
 
-    Args:
-        sport_type: The capturing activity's Strava sport type.
-        distance_m: The capturing activity's distance in meters, if known.
-        cell_count: How many cells are in this group.
-
-    Returns:
-        The group's total base value (not per-cell).
+    Swims are valued by distance alone, independent of cell_count - a swim
+    holds at most a couple of tiles no matter how far it goes.
     """
     if sport_type in SWIM_SPORT_TYPES:
         return ((distance_m or 0) / 1000) * TERRITORY_CELL_VALUE * SPORT_MULTIPLIERS["Swim"]
@@ -68,34 +47,22 @@ def _territory_group_value(
 
 
 def player_color(username: str) -> str:
-    """Deterministic display color for a player.
-
-    Args:
-        username: The player's username.
-
-    Returns:
-        A hex color, stable across requests and process restarts.
-    """
-    return PLAYER_COLORS[zlib.crc32(username.encode()) % len(PLAYER_COLORS)]
+    """Deterministic display color for a player, unique up to len(PLAYER_COLORS) players."""
+    usernames = list(User.objects.order_by("id").values_list("username", flat=True))
+    index = usernames.index(username) if username in usernames else zlib.crc32(username.encode())
+    return PLAYER_COLORS[index % len(PLAYER_COLORS)]
 
 
 def player_score(user: User) -> dict[str, int]:
-    """Current point total for a player, broken down by source.
+    """Current point total for a player, broken down by source, decay applied.
 
-    Reflects decay (see decay.py) but not exploration bonuses - those need
-    capture history, which isn't tracked yet. Includes trackless swims
-    (no GPS fix at all) counted under territory_points even though they
-    hold no cell - see _territory_group_value, which values swims purely
-    by distance regardless of cell count.
-
-    Args:
-        user: The player to score.
-
-    Returns:
-        A dict with "territory_points", "poi_points", and "total".
+    Swim points come straight from the player's swim activities, not from
+    TerritoryCell ownership - a swim scores by distance whether or not it
+    still holds its tile (see _territory_group_value).
     """
     territory_groups = (
         TerritoryCell.objects.filter(owner=user)
+        .exclude(captured_by__sport_type__in=SWIM_SPORT_TYPES)
         .values("captured_by__sport_type", "captured_by__distance_m", "captured_at")
         .annotate(cell_count=Count("cell_id"))
     )
@@ -110,7 +77,7 @@ def player_score(user: User) -> dict[str, int]:
     )
     territory_points += sum(
         current_value(_territory_group_value(a.sport_type, a.distance_m, 0), a.recorded_at)
-        for a in Activity.objects.filter(user=user, track__isnull=True)
+        for a in Activity.objects.filter(user=user, sport_type__in=SWIM_SPORT_TYPES)
     )
     poi_points = sum(
         current_value((poi.altitude_m or 0) * sport_multiplier(poi.claimed_by), poi.claimed_at)
@@ -124,14 +91,7 @@ def player_score(user: User) -> dict[str, int]:
 
 
 def score_split_pct(score: dict[str, int]) -> tuple[int, int]:
-    """Territory/POI percentage split, for a score's bar-chart display.
-
-    Args:
-        score: A player_score() result.
-
-    Returns:
-        (territory_pct, poi_pct), both 0-100, always summing to 100.
-    """
+    """Territory/POI percentage split for a score's bar-chart display."""
     if not score["total"]:
         return 0, 0
     territory_pct = round(100 * score["territory_points"] / score["total"])
@@ -139,25 +99,15 @@ def score_split_pct(score: dict[str, int]) -> tuple[int, int]:
 
 
 def player_capture_detail(user: User) -> dict[str, list[dict[str, Any]]]:
-    """Per-ride/per-pass breakdown of a player's current holdings.
-
-    Territory cells are grouped by the activity that captured them - an
-    individual hex tile means nothing to a player, but "this ride holds N
-    tiles worth P points" does.
-
-    Args:
-        user: The player to break down.
-
-    Returns:
-        "territory": groups sharing a capture, newest first, each with
-            activity_name, sport_type, multiplier, captured_at, age_days,
-            cell_count, points.
-        "pois": individually claimed passes, newest first, each with name,
-            altitude_m, sport_type, multiplier, claimed_at, age_days, points.
-    """
-    groups = TerritoryCell.objects.filter(owner=user).values(
-        "captured_by__name", "captured_by__sport_type", "captured_by__distance_m", "captured_at"
-    ).annotate(cell_count=Count("cell_id"))
+    """Per-ride/per-pass breakdown of a player's current holdings, newest first."""
+    groups = (
+        TerritoryCell.objects.filter(owner=user)
+        .exclude(captured_by__sport_type__in=SWIM_SPORT_TYPES)
+        .values(
+            "captured_by__name", "captured_by__sport_type", "captured_by__distance_m", "captured_at"
+        )
+        .annotate(cell_count=Count("cell_id"))
+    )
     territory: list[dict[str, Any]] = []
     for g in groups:
         captured_at = g["captured_at"]
@@ -178,7 +128,7 @@ def player_capture_detail(user: User) -> dict[str, list[dict[str, Any]]]:
             }
         )
 
-    for activity in Activity.objects.filter(user=user, track__isnull=True):
+    for activity in Activity.objects.filter(user=user, sport_type__in=SWIM_SPORT_TYPES):
         multiplier = SPORT_MULTIPLIERS.get(activity.sport_type or "", DEFAULT_SPORT_MULTIPLIER)
         group_value = _territory_group_value(activity.sport_type, activity.distance_m, 0)
         territory.append(
@@ -188,7 +138,7 @@ def player_capture_detail(user: User) -> dict[str, list[dict[str, Any]]]:
                 "multiplier": multiplier,
                 "captured_at": activity.recorded_at,
                 "age_days": elapsed_days(activity.recorded_at),
-                "cell_count": 0,
+                "cell_count": activity.captured_cells.filter(owner=user).count(),
                 "points": round(current_value(group_value, activity.recorded_at)),
             }
         )
@@ -213,23 +163,18 @@ def player_capture_detail(user: User) -> dict[str, list[dict[str, Any]]]:
 
 
 def leaderboard(*, with_detail: bool = False) -> list[dict[str, Any]]:
-    """Every player with any current ownership, ranked by score.
+    """Every player with any current ownership, ranked by score descending.
 
-    Args:
-        with_detail: Also attach each player's per-ride/per-pass breakdown
-            (see player_capture_detail) under "detail". Off by default since
-            callers like the profile page's rank lookup don't need it.
-
-    Returns:
-        Dicts with username, color, cell_count, poi_count, territory_points,
-        poi_points, total, territory_pct, poi_pct - sorted by total
-        descending.
+    with_detail also attaches each player's player_capture_detail() under
+    "detail" - off by default since e.g. the profile page's rank lookup
+    doesn't need it.
     """
     rows: list[dict[str, Any]] = []
     for user in User.objects.all():
         cell_count = TerritoryCell.objects.filter(owner=user).count()
         poi_count = POI.objects.filter(owner=user).count()
-        if not cell_count and not poi_count:
+        swims = Activity.objects.filter(user=user, sport_type__in=SWIM_SPORT_TYPES).exists()
+        if not cell_count and not poi_count and not swims:
             continue
         score = player_score(user)
         territory_pct, poi_pct = score_split_pct(score)

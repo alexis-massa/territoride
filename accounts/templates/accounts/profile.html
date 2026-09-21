@@ -14,14 +14,6 @@
     .profile-meta { color: #777; font-size: 0.9rem; margin-bottom: 1.5rem; }
     .score-total { font-size: 2.25rem; font-weight: 700; }
     .score-label { color: #777; font-size: 0.9rem; }
-    .pass-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 0.6rem 0;
-      border-bottom: 1px solid #eee;
-    }
-    .pass-row:last-child { border-bottom: none; }
-    .pass-altitude { color: #7a5230; font-weight: 600; }
     .danger-zone { text-align: center; }
     #delete-account {
       background: none;
@@ -61,17 +53,27 @@
       </div>
     </div>
 
-    <div class="card">
-      <h2 style="margin-top: 0;">Claimed passes</h2>
-      {% if claimed_pois %}
-        {% for poi in claimed_pois %}
-          <div class="pass-row">
-            <span>{{ poi.name }}</span>
-            <span class="pass-altitude">{{ poi.altitude_m|default:"?" }}m</span>
+    <div class="card detail-group">
+      {% if detail.territory %}
+        <h3>Territory captures</h3>
+        {% for g in detail.territory %}
+          <div class="detail-row">
+            <span>{{ g.activity_name }} - {{ g.cell_count }} cell{{ g.cell_count|pluralize }}{% if g.multiplier != 1 %} ({{ g.multiplier|floatformat:0 }}&times;){% endif %}</span>
+            <span class="detail-meta">{{ g.age_days|floatformat:0 }}d ago &middot; {{ g.points }} pts</span>
           </div>
         {% endfor %}
-      {% else %}
-        <p>No passes claimed yet.</p>
+      {% endif %}
+      {% if detail.pois %}
+        <h3>Passes</h3>
+        {% for p in detail.pois %}
+          <div class="detail-row">
+            <span>{{ p.name }} ({{ p.altitude_m|default:"?" }}m){% if p.multiplier != 1 %} ({{ p.multiplier|floatformat:0 }}&times;){% endif %}</span>
+            <span class="detail-meta">{{ p.age_days|floatformat:0 }}d ago &middot; {{ p.points }} pts</span>
+          </div>
+        {% endfor %}
+      {% endif %}
+      {% if not detail.territory and not detail.pois %}
+        <p>Nothing captured yet.</p>
       {% endif %}
     </div>
 

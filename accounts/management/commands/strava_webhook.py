@@ -16,12 +16,7 @@ class Command(BaseCommand):
         parser.add_argument("--callback-url", help="Public HTTPS URL for 'create', e.g. https://x/accounts/strava/webhook/")
 
     def handle(self, *args: Any, **options: Any) -> None:
-        """Dispatch to the requested push-subscription action.
-
-        Args:
-            *args: Unused positional arguments from Django's command framework.
-            **options: Parsed options; "action" and "callback_url" are used.
-        """
+        """Dispatch to the requested push-subscription action."""
         if options["action"] == "create":
             self._create(options["callback_url"])
         elif options["action"] == "view":
@@ -30,11 +25,7 @@ class Command(BaseCommand):
             self._delete()
 
     def _check(self, response: requests.Response) -> None:
-        """Raise with Strava's actual error body, not just the generic status message.
-
-        Args:
-            response: The API response to check.
-        """
+        """Raise with Strava's actual error body, not just the generic status message."""
         if not response.ok:
             raise CommandError(f"{response.status_code}: {response.text}")
 

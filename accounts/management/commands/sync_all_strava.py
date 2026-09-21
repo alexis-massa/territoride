@@ -12,12 +12,7 @@ class Command(BaseCommand):
     help = "Sync recent Strava activities for every connected player, not just the current user"
 
     def handle(self, *args: Any, **options: Any) -> None:
-        """Run the same sync as the "Sync from Strava" button, for every connected player.
-
-        Args:
-            *args: Unused positional arguments from Django's command framework.
-            **options: Unused parsed options from Django's command framework.
-        """
+        """Run the same sync as the "Sync from Strava" button, for every connected player."""
         players = User.objects.exclude(strava_refresh_token_encrypted="")
         for player in players:
             try:

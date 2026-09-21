@@ -31,14 +31,7 @@ BBOX_PARAM = "bbox"
 
 
 def _bbox_from_request(request: HttpRequest) -> tuple[float, float, float, float]:
-    """Parse the "bbox" query param into (min_lon, min_lat, max_lon, max_lat).
-
-    Args:
-        request: The incoming request.
-
-    Raises:
-        ValueError: If the param is missing or malformed.
-    """
+    """Parse the "bbox" query param into (min_lon, min_lat, max_lon, max_lat)."""
     if BBOX_PARAM not in request.GET:
         raise ValueError("Missing bbox param")
     min_lon, min_lat, max_lon, max_lat = (float(v) for v in request.GET[BBOX_PARAM].split(","))
@@ -46,14 +39,7 @@ def _bbox_from_request(request: HttpRequest) -> tuple[float, float, float, float
 
 
 def _user_territory_bbox(user: User) -> tuple[float, float, float, float] | None:
-    """Bounding box covering a player's current cells and passes.
-
-    Args:
-        user: The player to center the map on.
-
-    Returns:
-        (min_lon, min_lat, max_lon, max_lat), or None if they hold nothing.
-    """
+    """Bounding box covering a player's current cells and passes, or None if they hold nothing."""
     lats: list[float] = []
     lons: list[float] = []
     for cell_id in TerritoryCell.objects.filter(owner=user).values_list("cell_id", flat=True):
@@ -69,14 +55,7 @@ def _user_territory_bbox(user: User) -> tuple[float, float, float, float] | None
 
 
 def map_view(request: HttpRequest) -> HttpResponse:
-    """Render the main world map page.
-
-    Args:
-        request: The incoming request.
-
-    Returns:
-        The rendered map page.
-    """
+    """Render the main world map page."""
     default_bbox = None
     if request.user.is_authenticated:
         assert isinstance(request.user, User)
@@ -89,15 +68,7 @@ def map_view(request: HttpRequest) -> HttpResponse:
 
 
 def grid_geojson_view(request: HttpRequest) -> HttpResponse:
-    """Grid cells covering a viewport, as GeoJSON.
-
-    Args:
-        request: The incoming request; expects a "bbox" query param
-            formatted as "min_lon,min_lat,max_lon,max_lat".
-
-    Returns:
-        A GeoJSON FeatureCollection, or 400 if bbox is missing/malformed.
-    """
+    """Grid cells covering the viewport's "bbox" query param, as GeoJSON."""
     try:
         min_lon, min_lat, max_lon, max_lat = _bbox_from_request(request)
     except ValueError:
@@ -115,14 +86,7 @@ def grid_geojson_view(request: HttpRequest) -> HttpResponse:
 
 
 def _territory_feature(cell: TerritoryCell) -> dict[str, Any]:
-    """Build one territory GeoJSON feature.
-
-    Args:
-        cell: A captured cell (must have an owner).
-
-    Returns:
-        A GeoJSON Feature dict.
-    """
+    """Build one territory GeoJSON feature for a captured (owned) cell."""
     assert cell.owner is not None
     assert cell.captured_at is not None
     return {
@@ -139,28 +103,14 @@ def _territory_feature(cell: TerritoryCell) -> dict[str, Any]:
 
 
 def territory_geojson_view(request: HttpRequest) -> HttpResponse:
-    """Captured territory cells, as GeoJSON.
-
-    Args:
-        request: The incoming request.
-
-    Returns:
-        A GeoJSON FeatureCollection of owned cells.
-    """
+    """Captured territory cells, as GeoJSON."""
     cells = TerritoryCell.objects.exclude(owner=None).select_related("owner")
     features = [_territory_feature(cell) for cell in cells]
     return JsonResponse({"type": "FeatureCollection", "features": features})
 
 
 def routes_geojson_view(request: HttpRequest) -> HttpResponse:
-    """Tracks of activities that have captured at least one cell, as GeoJSON.
-
-    Args:
-        request: The incoming request.
-
-    Returns:
-        A GeoJSON FeatureCollection of claiming routes.
-    """
+    """Tracks of activities that have captured at least one cell, as GeoJSON."""
     activities = Activity.objects.filter(
         captured_cells__isnull=False, track__isnull=False
     ).distinct()
@@ -182,14 +132,7 @@ def routes_geojson_view(request: HttpRequest) -> HttpResponse:
 
 
 def _poi_feature(poi: POI) -> dict[str, Any]:
-    """Build one POI GeoJSON feature.
-
-    Args:
-        poi: The point of interest to serialize.
-
-    Returns:
-        A GeoJSON Feature dict.
-    """
+    """Build one POI GeoJSON feature."""
     return {
         "type": "Feature",
         "geometry": json.loads(poi.location.geojson),
@@ -206,15 +149,7 @@ def _poi_feature(poi: POI) -> dict[str, Any]:
 
 
 def pois_geojson_view(request: HttpRequest) -> HttpResponse:
-    """Mountain pass POIs covering a viewport, as GeoJSON.
-
-    Args:
-        request: The incoming request; expects a "bbox" query param
-            formatted as "min_lon,min_lat,max_lon,max_lat".
-
-    Returns:
-        A GeoJSON FeatureCollection, or 400 if bbox is missing/malformed.
-    """
+    """Mountain pass POIs covering the viewport's "bbox" query param, as GeoJSON."""
     try:
         min_lon, min_lat, max_lon, max_lat = _bbox_from_request(request)
     except ValueError:
@@ -228,26 +163,12 @@ def pois_geojson_view(request: HttpRequest) -> HttpResponse:
 
 
 def _humanize_sport(sport_type: str) -> str:
-    """Turn a Strava sport_type code into a readable label.
-
-    Args:
-        sport_type: A Strava sport_type value, e.g. "TrailRun".
-
-    Returns:
-        A space-separated label, e.g. "Trail Run".
-    """
+    """Turn a Strava sport_type code (e.g. "TrailRun") into a readable label ("Trail Run")."""
     return re.sub(r"(?<=[a-z])(?=[A-Z])", " ", sport_type)
 
 
 def rules_view(request: HttpRequest) -> HttpResponse:
-    """Render the player-facing rules and security info page.
-
-    Args:
-        request: The incoming request.
-
-    Returns:
-        The rendered rules page.
-    """
+    """Render the player-facing rules and security info page."""
     sport_multipliers = [("Cycling", DEFAULT_SPORT_MULTIPLIER)] + sorted(
         ((_humanize_sport(sport), multiplier) for sport, multiplier in SPORT_MULTIPLIERS.items()),
         key=lambda pair: pair[1],
@@ -267,41 +188,20 @@ def rules_view(request: HttpRequest) -> HttpResponse:
 
 
 def changelog_view(request: HttpRequest) -> HttpResponse:
-    """Render the project changelog for players.
-
-    Args:
-        request: The incoming request.
-
-    Returns:
-        The rendered changelog page.
-    """
+    """Render the project changelog for players."""
     text = (settings.BASE_DIR / "CHANGELOG.md").read_text()
     return render(request, "game/changelog.html", {"changelog_html": markdown.markdown(text)})
 
 
 def leaderboard_view(request: HttpRequest) -> HttpResponse:
-    """Render the player rankings page.
-
-    Args:
-        request: The incoming request.
-
-    Returns:
-        The rendered leaderboard page.
-    """
+    """Render the player rankings page."""
     return render(request, "game/leaderboard.html", {"rows": leaderboard(with_detail=True)})
 
 
 @login_required
 @require_POST
 def import_activity_view(request: HttpRequest) -> HttpResponse:
-    """Import an uploaded GPX file as an Activity and capture territory/POIs.
-
-    Args:
-        request: The incoming request; expects a "gpx_file" upload.
-
-    Returns:
-        A redirect to the map, with a status message.
-    """
+    """Import an uploaded GPX file as an Activity and capture territory/POIs."""
     assert isinstance(request.user, User)
     gpx_file = request.FILES.get("gpx_file")
     if gpx_file is None:

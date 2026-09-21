@@ -9,27 +9,12 @@ DECAY_THRESHOLD_DAYS = 30
 
 
 def elapsed_days(captured_at: datetime) -> int:
-    """Whole days elapsed since a capture.
-
-    Args:
-        captured_at: When the capture happened.
-
-    Returns:
-        Days elapsed.
-    """
+    """Whole days elapsed since a capture."""
     return (timezone.now().date() - captured_at.date()).days
 
 
 def current_value(base_value: float, captured_at: datetime | None) -> float:
-    """Linearly decayed value of a capture, based on time since capture.
-
-    Args:
-        base_value: The value at the moment of capture.
-        captured_at: When it was captured, or None if unowned.
-
-    Returns:
-        base_value at capture time, decaying to 0 at DECAY_THRESHOLD_DAYS.
-    """
+    """base_value linearly decayed to 0 at DECAY_THRESHOLD_DAYS; 0 if unowned."""
     if captured_at is None:
         return 0
     remaining = max(0.0, 1 - elapsed_days(captured_at) / DECAY_THRESHOLD_DAYS)
@@ -37,12 +22,7 @@ def current_value(base_value: float, captured_at: datetime | None) -> float:
 
 
 def release_expired() -> int:
-    """Return territory cells and POIs past the decay threshold to unowned,
-    and delete activities old enough that nothing they captured survives.
-
-    Returns:
-        The number of cells and POIs released.
-    """
+    """Return expired cells/POIs to unowned and delete activities past the threshold."""
     cutoff = timezone.now() - timedelta(days=DECAY_THRESHOLD_DAYS)
     cells = TerritoryCell.objects.filter(captured_at__lt=cutoff).update(
         owner=None, captured_by=None, captured_at=None

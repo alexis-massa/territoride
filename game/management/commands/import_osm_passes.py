@@ -18,14 +18,7 @@ REQUEST_HEADERS = {"User-Agent": "TerritoRide/0.1 (hobby project; not for produc
 
 
 def _parse_altitude(ele: str | None) -> int | None:
-    """Parse OSM's ele tag into whole meters.
-
-    Args:
-        ele: The raw "ele" tag value, if present.
-
-    Returns:
-        The altitude in meters, or None if missing/unparseable.
-    """
+    """Parse OSM's "ele" tag into whole meters, or None if missing/unparseable."""
     if ele is None:
         return None
     try:
@@ -38,12 +31,7 @@ class Command(BaseCommand):
     help = "Import named mountain passes from OpenStreetMap, worldwide"
 
     def handle(self, *args: Any, **options: Any) -> None:
-        """Fetch mountain_pass=yes nodes from Overpass and create any new POIs.
-
-        Args:
-            *args: Unused positional arguments from Django's command framework.
-            **options: Unused parsed options from Django's command framework.
-        """
+        """Fetch mountain_pass=yes nodes from Overpass and create any new POIs."""
         self.stdout.write("Querying Overpass (worldwide - can take a minute or two)...")
         query = '[out:json][timeout:90];node["mountain_pass"="yes"]["name"];out body;'
         elements = self._fetch_elements(query)
@@ -70,14 +58,7 @@ class Command(BaseCommand):
         )
 
     def _fetch_elements(self, query: str) -> list[dict[str, Any]]:
-        """POST a query to Overpass, retrying on transient server errors.
-
-        Args:
-            query: The Overpass QL query string.
-
-        Returns:
-            The "elements" list from Overpass's JSON response.
-        """
+        """POST a query to Overpass, retrying on transient server errors."""
         for attempt in range(1, MAX_ATTEMPTS + 1):
             response = requests.post(
                 OVERPASS_URL, data={"data": query}, headers=REQUEST_HEADERS, timeout=120

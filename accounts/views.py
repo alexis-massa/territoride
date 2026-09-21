@@ -63,14 +63,7 @@ class StravaTokenResponse(TypedDict):
 
 
 def strava_authorize(request: HttpRequest) -> HttpResponse:
-    """Start the Strava OAuth handshake.
-
-    Args:
-        request: The incoming request; used for the session and callback URL.
-
-    Returns:
-        A redirect to Strava's OAuth authorize page.
-    """
+    """Start the Strava OAuth handshake: redirect to Strava's authorize page."""
     state = secrets.token_urlsafe(32)
     request.session[OAUTH_STATE_SESSION_KEY] = state
 
@@ -87,14 +80,7 @@ def strava_authorize(request: HttpRequest) -> HttpResponse:
 
 
 def strava_callback(request: HttpRequest) -> HttpResponse:
-    """Handle Strava's OAuth redirect: exchange the code and log the player in.
-
-    Args:
-        request: The callback request, carrying `code` and `state` query params.
-
-    Returns:
-        The popup-closing response, reporting success or failure to the opener.
-    """
+    """Handle Strava's OAuth redirect: exchange the code and log the player in."""
     if ERROR_PARAM in request.GET:
         message = f"Strava denied access: {request.GET[ERROR_PARAM]}"
         return _popup_response(request, status="error", message=message)
@@ -140,14 +126,7 @@ def strava_callback(request: HttpRequest) -> HttpResponse:
 
 
 def _ensure_valid_token(user: User) -> str:
-    """Refresh the player's stored Strava access token if it has expired.
-
-    Args:
-        user: The player whose Strava connection to check.
-
-    Returns:
-        A valid access token.
-    """
+    """Refresh the player's stored Strava access token if it has expired, and return it."""
     if user.strava_token_expires_at and user.strava_token_expires_at > datetime.now(UTC):
         return user.strava_access_token
 
@@ -171,17 +150,7 @@ def _ensure_valid_token(user: User) -> str:
 
 
 def _fetch_recent_strava_activities(token: str) -> list[dict[str, Any]]:
-    """Fetch every Strava activity within the decay window.
-
-    Activities older than that have no value even if imported, since they'd
-    already be past DECAY_THRESHOLD_DAYS.
-
-    Args:
-        token: A valid Strava access token.
-
-    Returns:
-        Raw activity summaries from Strava, newest first.
-    """
+    """Fetch every Strava activity within the decay window - older ones would score 0 anyway."""
     cutoff = datetime.now(UTC) - timedelta(days=DECAY_THRESHOLD_DAYS)
     activities: list[dict[str, Any]] = []
     page = 1
@@ -203,14 +172,7 @@ def _fetch_recent_strava_activities(token: str) -> list[dict[str, Any]]:
 @login_required
 @require_POST
 def sync_strava_view(request: HttpRequest) -> HttpResponse:
-    """Pull the player's recent Strava activities and capture territory/POIs.
-
-    Args:
-        request: The incoming request.
-
-    Returns:
-        A redirect to the map, with a status message.
-    """
+    """Pull the player's recent Strava activities and capture territory/POIs."""
     assert isinstance(request.user, User)
     if not request.user.strava_refresh_token:
         messages.error(request, "Connect with Strava first.")
@@ -238,11 +200,7 @@ def sync_strava_view(request: HttpRequest) -> HttpResponse:
 
 
 def _handle_strava_event(event: dict[str, Any]) -> None:
-    """Process one Strava webhook event: a new/updated activity, or deauthorization.
-
-    Args:
-        event: The decoded webhook payload.
-    """
+    """Process one Strava webhook event: a new/updated activity, or deauthorization."""
     if event.get("object_type") != "activity":
         return
     try:
@@ -278,16 +236,7 @@ def _handle_strava_event(event: dict[str, Any]) -> None:
 
 @csrf_exempt
 def strava_webhook_view(request: HttpRequest) -> HttpResponse:
-    """Handle Strava's webhook subscription handshake and activity events.
-
-    Args:
-        request: The incoming request; GET is the one-time subscription
-            challenge, POST delivers activity/deauthorization events.
-
-    Returns:
-        The echoed challenge on GET; an empty 200 on POST, since Strava
-        requires a fast response regardless of processing outcome.
-    """
+    """Handle Strava's webhook: echo the subscription challenge on GET, process events on POST."""
     if request.method == "GET":
         if request.GET.get("hub.verify_token") != settings.STRAVA_WEBHOOK_VERIFY_TOKEN:
             return HttpResponseForbidden()
@@ -300,15 +249,7 @@ def strava_webhook_view(request: HttpRequest) -> HttpResponse:
 @login_required
 @require_POST
 def delete_account_view(request: HttpRequest) -> HttpResponse:
-    """Delete the player's account: revoke Strava access, wipe their data,
-    and let any surviving activity reclaim what they held.
-
-    Args:
-        request: The incoming request.
-
-    Returns:
-        A redirect to the map, logged out, with a status message.
-    """
+    """Delete the player's account: revoke Strava access, wipe their data, let others reclaim."""
     assert isinstance(request.user, User)
     user = request.user
 
@@ -331,14 +272,7 @@ def delete_account_view(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def profile_view(request: HttpRequest) -> HttpResponse:
-    """Render the current player's profile page.
-
-    Args:
-        request: The incoming request; must be authenticated.
-
-    Returns:
-        The rendered profile page.
-    """
+    """Render the current player's profile page."""
     assert isinstance(request.user, User)
     board = leaderboard()
     rank = next(
@@ -359,14 +293,5 @@ def profile_view(request: HttpRequest) -> HttpResponse:
 
 
 def _popup_response(request: HttpRequest, *, status: str, message: str) -> HttpResponse:
-    """Render the page the OAuth popup closes itself from.
-
-    Args:
-        request: The current request.
-        status: "success" or "error"; read by the opener window's JS.
-        message: Text shown in the popup and relayed to the opener.
-
-    Returns:
-        The rendered oauth_complete.html response.
-    """
+    """Render the page the OAuth popup closes itself from, reporting status to the opener."""
     return render(request, "accounts/oauth_complete.html", {"status": status, "message": message})

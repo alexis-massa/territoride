@@ -5,48 +5,25 @@ from django.contrib.gis.measure import D
 from .grid import RESOLUTION, cells_in_loop
 from .models import POI, Activity, TerritoryCell
 
-# Strava trims ~200m at start/end, so a loop can show up to ~400m "open"
-# 500m covers GPS noise.
+# Strava trims ~200m at start/end, so a loop can show up to ~400m "open".
 LOOP_CLOSE_TOLERANCE_M = 500
 
-# Cover GPS noise
 POI_CAPTURE_RADIUS_M = 100
 
 
 def is_loop(points: list[tuple[float, float]]) -> bool:
-    """Whether a track's endpoints are close enough to count as a loop.
-
-    Args:
-        points: Ordered (lat, lng) points along the track.
-
-    Returns:
-        True if the endpoints are within LOOP_CLOSE_TOLERANCE_M of each other.
-    """
+    """Whether a track's endpoints are within LOOP_CLOSE_TOLERANCE_M of each other."""
     distance: float = h3.great_circle_distance(points[0], points[-1], unit="m")
     return distance <= LOOP_CLOSE_TOLERANCE_M
 
 
 def touched_cells(points: list[tuple[float, float]]) -> set[str]:
-    """H3 cells a track passes through.
-
-    Args:
-        points: Ordered (lat, lng) points along the track.
-
-    Returns:
-        Cell indexes.
-    """
+    """H3 cells a track passes through."""
     return {h3.latlng_to_cell(lat, lng, RESOLUTION) for lat, lng in points}
 
 
 def captured_cells(points: list[tuple[float, float]]) -> set[str]:
-    """Cells a track captures: touched cells, plus enclosed ones if it's a loop.
-
-    Args:
-        points: Ordered (lat, lng) points along the track.
-
-    Returns:
-        Cell indexes.
-    """
+    """Cells a track captures: touched cells, plus enclosed ones if it's a loop."""
     cells = touched_cells(points)
     if is_loop(points):
         cells |= cells_in_loop(points)
@@ -54,16 +31,7 @@ def captured_cells(points: list[tuple[float, float]]) -> set[str]:
 
 
 def capture_point(activity: Activity, lat: float, lng: float) -> int:
-    """Claim the single cell at a point.
-
-    Args:
-        activity: The capturing activity.
-        lat: Latitude of the point.
-        lng: Longitude of the point.
-
-    Returns:
-        Always 1 (one cell captured).
-    """
+    """Claim the single cell at a point; always captures 1 cell."""
     cell_id = h3.latlng_to_cell(lat, lng, RESOLUTION)
     TerritoryCell.objects.update_or_create(
         cell_id=cell_id,
@@ -77,14 +45,7 @@ def capture_point(activity: Activity, lat: float, lng: float) -> int:
 
 
 def capture_territory(activity: Activity) -> int:
-    """Claim every cell an activity captures, for that activity's owner.
-
-    Args:
-        activity: The activity whose track determines what it captures.
-
-    Returns:
-        The number of cells captured.
-    """
+    """Claim every cell an activity's track captures; returns the count captured."""
     assert activity.track is not None
     points = [(lat, lng) for lng, lat in activity.track.coords]
     cells = captured_cells(points)
@@ -101,14 +62,7 @@ def capture_territory(activity: Activity) -> int:
 
 
 def capture_pois(activity: Activity) -> int:
-    """Claim every POI an activity's track passes within range of.
-
-    Args:
-        activity: The activity whose track determines what it captures.
-
-    Returns:
-        The number of POIs captured.
-    """
+    """Claim every nearby POI; returns the count captured."""
     nearby = POI.objects.annotate(distance=Distance("location", activity.track)).filter(
         distance__lte=D(m=POI_CAPTURE_RADIUS_M)  # type: ignore[misc]  # django-stubs wants a float here, but a Distance object is correct
     )
@@ -116,16 +70,8 @@ def capture_pois(activity: Activity) -> int:
 
 
 def recapture_all() -> tuple[int, int]:
-    """Replay capture for every activity, oldest first.
-
-    Needed after POIs are added, capture logic changes, or a player's
-    activities are deleted - so any surviving activity through the same
-    ground reclaims it instead of leaving it stuck at whatever was last
-    written. Trackless activities (e.g. a fully indoor swim with no GPS fix
-    at all) hold no cell, so there's nothing to replay for them.
-
-    Returns:
-        (cells_captured, pois_captured) totals across every activity.
+    """Replay capture for every activity oldest-first, so the most recent through each
+    cell/POI ends up owning it. Needed after POI/scoring changes or an activity deletion.
     """
     activities = list(Activity.objects.order_by("recorded_at"))
     cells = pois = 0
@@ -142,17 +88,7 @@ def recapture_all() -> tuple[int, int]:
 
 
 def release_activity(activity: Activity) -> None:
-    """Release everything an activity holds, then delete it.
-
-    Deleting just the Activity row (e.g. via cascade/SET_NULL) only clears
-    captured_by/claimed_by - owner points at the player directly, who still
-    exists, so cells/POIs would otherwise stay stuck showing an owner with
-    nothing behind the claim. recapture_all() afterward lets any other
-    surviving activity that also touched the same ground reclaim it.
-
-    Args:
-        activity: The activity to remove.
-    """
+    """Release everything an activity holds, delete it, then let other activities reclaim."""
     TerritoryCell.objects.filter(captured_by=activity).update(
         owner=None, captured_by=None, captured_at=None
     )

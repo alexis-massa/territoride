@@ -19,12 +19,7 @@ class Command(BaseCommand):
         parser.add_argument("username")
 
     def handle(self, *args: Any, **options: Any) -> None:
-        """Parse the GPX file, store it as an Activity, and capture territory and POIs.
-
-        Args:
-            *args: Unused positional arguments from Django's command framework.
-            **options: Parsed command options; "gpx_path" and "username" are used.
-        """
+        """Parse the GPX file, store it as an Activity, and capture territory and POIs."""
         try:
             user = User.objects.get(username=options["username"])
         except User.DoesNotExist as exc:

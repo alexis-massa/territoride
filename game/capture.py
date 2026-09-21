@@ -1,6 +1,7 @@
 import h3
 from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.measure import D
+from django.db.models import Q
 
 from .grid import RESOLUTION, cells_in_loop
 from .models import POI, Activity, TerritoryCell
@@ -30,41 +31,46 @@ def captured_cells(points: list[tuple[float, float]]) -> set[str]:
     return cells
 
 
-def capture_point(activity: Activity, lat: float, lng: float) -> int:
-    """Claim the single cell at a point; always captures 1 cell."""
-    cell_id = h3.latlng_to_cell(lat, lng, RESOLUTION)
-    TerritoryCell.objects.update_or_create(
-        cell_id=cell_id,
-        defaults={
-            "owner": activity.user,
-            "captured_by": activity,
-            "captured_at": activity.recorded_at,
-        },
+def _claim_cells(activity: Activity, cell_ids: set[str]) -> int:
+    """Claim cells for an activity, unless already held by a more recent capture.
+
+    "Last rider through wins" by recording time, not import order - an
+    activity synced late must not steal a cell someone already holds from
+    a more recent ride.
+    """
+    existing = set(
+        TerritoryCell.objects.filter(cell_id__in=cell_ids).values_list("cell_id", flat=True)
     )
-    return 1
+    TerritoryCell.objects.bulk_create(
+        [TerritoryCell(cell_id=cell_id) for cell_id in cell_ids - existing], ignore_conflicts=True
+    )
+    return (
+        TerritoryCell.objects.filter(cell_id__in=cell_ids)
+        .filter(Q(owner__isnull=True) | Q(captured_at__lt=activity.recorded_at))
+        .update(owner=activity.user, captured_by=activity, captured_at=activity.recorded_at)
+    )
+
+
+def capture_point(activity: Activity, lat: float, lng: float) -> int:
+    """Claim the single cell at a point; returns 1 if claimed, 0 if held more recently."""
+    cell_id = h3.latlng_to_cell(lat, lng, RESOLUTION)
+    return _claim_cells(activity, {cell_id})
 
 
 def capture_territory(activity: Activity) -> int:
-    """Claim every cell an activity's track captures; returns the count captured."""
+    """Claim every cell an activity's track captures; returns the count actually claimed."""
     assert activity.track is not None
     points = [(lat, lng) for lng, lat in activity.track.coords]
     cells = captured_cells(points)
-    for cell_id in cells:
-        TerritoryCell.objects.update_or_create(
-            cell_id=cell_id,
-            defaults={
-                "owner": activity.user,
-                "captured_by": activity,
-                "captured_at": activity.recorded_at,
-            },
-        )
-    return len(cells)
+    return _claim_cells(activity, cells)
 
 
 def capture_pois(activity: Activity) -> int:
-    """Claim every nearby POI; returns the count captured."""
-    nearby = POI.objects.annotate(distance=Distance("location", activity.track)).filter(
-        distance__lte=D(m=POI_CAPTURE_RADIUS_M)  # type: ignore[misc]  # django-stubs wants a float here, but a Distance object is correct
+    """Claim every nearby POI; returns the count actually claimed."""
+    nearby = (
+        POI.objects.annotate(distance=Distance("location", activity.track))
+        .filter(distance__lte=D(m=POI_CAPTURE_RADIUS_M))  # type: ignore[misc]
+        .filter(Q(owner__isnull=True) | Q(claimed_at__lt=activity.recorded_at))
     )
     return nearby.update(owner=activity.user, claimed_by=activity, claimed_at=activity.recorded_at)
 

@@ -25,8 +25,14 @@ from django.views.decorators.http import require_POST
 
 from game.capture import recapture_all, release_activity
 from game.decay import DECAY_THRESHOLD_DAYS
-from game.models import POI, Activity
-from game.scoring import leaderboard, player_color, player_score, score_split_pct
+from game.models import Activity
+from game.scoring import (
+    leaderboard,
+    player_capture_detail,
+    player_color,
+    player_score,
+    score_split_pct,
+)
 from game.strava_import import import_from_strava
 
 from .models import User
@@ -287,7 +293,7 @@ def profile_view(request: HttpRequest) -> HttpResponse:
         "player_color": player_color(request.user.username),
         "rank": rank,
         "player_count": len(board),
-        "claimed_pois": POI.objects.filter(owner=request.user).order_by("-altitude_m"),
+        "detail": player_capture_detail(request.user),
     }
     return render(request, "accounts/profile.html", context)
 

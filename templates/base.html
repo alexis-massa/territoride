@@ -55,6 +55,24 @@
     }
     .legend-item { display: flex; align-items: center; gap: 0.35rem; }
     .legend-swatch { width: 0.6rem; height: 0.6rem; border-radius: 2px; }
+    .detail-group h3 {
+      margin: 0.75rem 0 0.4rem;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: #999;
+    }
+    .detail-group h3:first-child { margin-top: 0; }
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      font-size: 0.85rem;
+      padding: 0.3rem 0;
+      border-bottom: 1px solid #f3f3f3;
+    }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-row .detail-meta { color: #999; flex-shrink: 0; }
   </style>
   {% block head %}{% endblock %}
 </head>

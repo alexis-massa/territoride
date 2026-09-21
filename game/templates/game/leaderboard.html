@@ -53,24 +53,6 @@
       flex-shrink: 0;
     }
     .rank-detail { padding: 0 0 1rem 3rem; }
-    .rank-detail h3 {
-      margin: 0.75rem 0 0.4rem;
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-      color: #999;
-    }
-    .rank-detail h3:first-child { margin-top: 0; }
-    .detail-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 1rem;
-      font-size: 0.85rem;
-      padding: 0.3rem 0;
-      border-bottom: 1px solid #f3f3f3;
-    }
-    .detail-row:last-child { border-bottom: none; }
-    .detail-row .detail-meta { color: #999; flex-shrink: 0; }
   </style>
 {% endblock %}
 
@@ -105,7 +87,7 @@
               </div>
               <div class="rank-total">{{ row.total }}</div>
             </summary>
-            <div class="rank-detail">
+            <div class="rank-detail detail-group">
               {% if row.detail.territory %}
                 <h3>Territory captures</h3>
                 {% for g in row.detail.territory %}

@@ -6,6 +6,7 @@ appended automatically to `[Unreleased]` by a commit hook (see
 [README.md](README.md)); versions are cut and tagged on `main` by hand.
 
 ## [Unreleased]
+- feat: move sync/import into the profile dropdown, keep rules/leaderboard visible
 - feat: show capture breakdown on profile page
 - fix: swim points don't depend on holding the tile
 - fix: player colors are assigned by join order, can't collide

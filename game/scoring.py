@@ -25,13 +25,6 @@ SPORT_MULTIPLIERS = {
 SWIM_SPORT_TYPES = {"Swim", "OpenWaterSwim"}
 
 
-def sport_multiplier(activity: Activity | None) -> float:
-    """Point multiplier for the sport that made a capture, 1x if unknown."""
-    if activity is None:
-        return DEFAULT_SPORT_MULTIPLIER
-    return SPORT_MULTIPLIERS.get(activity.sport_type, DEFAULT_SPORT_MULTIPLIER)
-
-
 def _territory_group_value(
     sport_type: str | None, distance_m: int | None, cell_count: int
 ) -> float:
@@ -80,8 +73,8 @@ def player_score(user: User) -> dict[str, int]:
         for a in Activity.objects.filter(user=user, sport_type__in=SWIM_SPORT_TYPES)
     )
     poi_points = sum(
-        current_value((poi.altitude_m or 0) * sport_multiplier(poi.claimed_by), poi.claimed_at)
-        for poi in POI.objects.filter(owner=user).select_related("claimed_by")
+        current_value(poi.altitude_m or 0, poi.claimed_at)
+        for poi in POI.objects.filter(owner=user)
     )
     return {
         "territory_points": round(territory_points),
@@ -147,16 +140,14 @@ def player_capture_detail(user: User) -> dict[str, list[dict[str, Any]]]:
     pois: list[dict[str, Any]] = []
     for poi in POI.objects.filter(owner=user).select_related("claimed_by").order_by("-claimed_at"):
         assert poi.claimed_at is not None
-        multiplier = sport_multiplier(poi.claimed_by)
         pois.append(
             {
                 "name": poi.name,
                 "altitude_m": poi.altitude_m,
                 "sport_type": poi.claimed_by.sport_type if poi.claimed_by else "",
-                "multiplier": multiplier,
                 "claimed_at": poi.claimed_at,
                 "age_days": elapsed_days(poi.claimed_at),
-                "points": round(current_value((poi.altitude_m or 0) * multiplier, poi.claimed_at)),
+                "points": round(current_value(poi.altitude_m or 0, poi.claimed_at)),
             }
         )
     return {"territory": territory, "pois": pois}

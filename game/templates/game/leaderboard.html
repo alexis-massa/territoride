@@ -101,7 +101,7 @@
                 <h3>Passes</h3>
                 {% for p in row.detail.pois %}
                   <div class="detail-row">
-                    <span>{{ p.name }} ({{ p.altitude_m|default:"?" }}m){% if p.multiplier != 1 %} ({{ p.multiplier|floatformat:0 }}&times;){% endif %}</span>
+                    <span>{{ p.name }} ({{ p.altitude_m|default:"?" }}m)</span>
                     <span class="detail-meta">{{ p.age_days|floatformat:0 }}d ago &middot; {{ p.points }} pts</span>
                   </div>
                 {% endfor %}

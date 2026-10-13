@@ -6,6 +6,7 @@ appended automatically to `[Unreleased]` by a commit hook (see
 [README.md](README.md)); versions are cut and tagged on `main` by hand.
 
 ## [Unreleased]
+- fix: captured tiles no longer fade to near-invisible near expiry
 - fix: stop applying sport multiplier to mountain pass points
 - chore: cut v0.3.0, backfill missed v0.2.1/v0.2.2 changelog sections
 

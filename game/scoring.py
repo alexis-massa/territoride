@@ -143,6 +143,7 @@ def player_capture_detail(user: User) -> dict[str, list[dict[str, Any]]]:
         pois.append(
             {
                 "name": poi.name,
+                "poi_type_label": poi.get_poi_type_display(),
                 "altitude_m": poi.altitude_m,
                 "sport_type": poi.claimed_by.sport_type if poi.claimed_by else "",
                 "claimed_at": poi.claimed_at,

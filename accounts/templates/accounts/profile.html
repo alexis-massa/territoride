@@ -49,7 +49,7 @@
       </div>
       <div class="legend">
         <div class="legend-item"><span class="legend-swatch" style="background:#3b6fd6"></span> Territory — {{ score.territory_points }}</div>
-        <div class="legend-item"><span class="legend-swatch" style="background:#7a5230"></span> Passes — {{ score.poi_points }}</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:#7a5230"></span> POIs — {{ score.poi_points }}</div>
       </div>
     </div>
 
@@ -64,10 +64,10 @@
         {% endfor %}
       {% endif %}
       {% if detail.pois %}
-        <h3>Passes</h3>
+        <h3>Points of interest</h3>
         {% for p in detail.pois %}
           <div class="detail-row">
-            <span>{{ p.name }} ({{ p.altitude_m|default:"?" }}m)</span>
+            <span>{{ p.name }} ({{ p.altitude_m|default:"?" }}m) &middot; {{ p.poi_type_label }}</span>
             <span class="detail-meta">{{ p.age_days|floatformat:0 }}d ago &middot; {{ p.points }} pts</span>
           </div>
         {% endfor %}

@@ -17,5 +17,5 @@ class TerritoryCellAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
 
 @admin.register(POI)
 class POIAdmin(GISModelAdmin):  # type: ignore[type-arg]
-    list_display = ("name", "altitude_m", "owner", "claimed_at")
-    list_filter = ("owner",)
+    list_display = ("name", "poi_type", "altitude_m", "owner", "claimed_at")
+    list_filter = ("poi_type", "owner")

@@ -9,12 +9,6 @@ def cell_boundary(cell: str) -> list[tuple[float, float]]:
     return [*ring, ring[0]]
 
 
-def cells_in_bbox(min_lon: float, min_lat: float, max_lon: float, max_lat: float) -> set[str]:
-    """H3 cells covering a lon/lat bounding box."""
-    corners = [(min_lat, min_lon), (min_lat, max_lon), (max_lat, max_lon), (max_lat, min_lon)]
-    return _cells_covering(corners)
-
-
 def cells_in_loop(points: list[tuple[float, float]]) -> set[str]:
     """H3 cells enclosed by a closed (lat, lng) loop."""
     return _cells_covering(points)

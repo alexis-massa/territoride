@@ -6,6 +6,7 @@ appended automatically to `[Unreleased]` by a commit hook (see
 [README.md](README.md)); versions are cut and tagged on `main` by hand.
 
 ## [Unreleased]
+- feat: import summits from OpenStreetMap, filtered by elevation/wikipedia/prominence
 - feat: support multiple POI types (mountain passes, summits) with per-type map filters
 - chore: remove the grid overlay, it was slow and added no visual value
 - fix: captured tiles no longer fade to near-invisible near expiry

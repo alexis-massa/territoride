@@ -3,7 +3,7 @@ from typing import Any
 
 import requests
 from django.contrib.gis.geos import Point
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandParser
 
 from game.models import POI
 
@@ -15,6 +15,26 @@ OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 MAX_ATTEMPTS = 3
 RETRY_DELAY_SECONDS = 5
 REQUEST_HEADERS = {"User-Agent": "TerritoRide/0.1 (hobby project; not for production use)"}
+
+# Summits worldwide number in the millions - named ones alone are still huge,
+# so also require elevation data (no altitude, no points - not worth
+# importing) and some sign of significance: a notably high elevation, a
+# Wikipedia article, or a tagged topographic prominence. Any one is enough.
+SUMMIT_MIN_ELEVATION_M = 1000
+
+QUERIES = {
+    POI.POIType.MOUNTAIN_PASS: (
+        '[out:json][timeout:90];node["mountain_pass"="yes"]["name"];out body;'
+    ),
+    POI.POIType.SUMMIT: (
+        "[out:json][timeout:180];"
+        'node["natural"="peak"]["name"]'
+        '(if: t["ele"] != "" && ('
+        f'number(t["ele"]) > {SUMMIT_MIN_ELEVATION_M}'
+        ' || t["wikipedia"] != "" || t["prominence"] != ""));'
+        "out body;"
+    ),
+}
 
 
 def _parse_altitude(ele: str | None) -> int | None:
@@ -28,21 +48,26 @@ def _parse_altitude(ele: str | None) -> int | None:
 
 
 class Command(BaseCommand):
-    help = "Import named mountain passes from OpenStreetMap, worldwide"
+    help = "Import named POIs (mountain passes or summits) from OpenStreetMap, worldwide"
+
+    def add_arguments(self, parser: CommandParser) -> None:
+        """Declare the command's arguments."""
+        parser.add_argument("poi_type", choices=POI.POIType.values)
 
     def handle(self, *args: Any, **options: Any) -> None:
-        """Fetch mountain_pass=yes nodes from Overpass and create any new POIs."""
-        self.stdout.write("Querying Overpass (worldwide - can take a minute or two)...")
-        query = '[out:json][timeout:90];node["mountain_pass"="yes"]["name"];out body;'
-        elements = self._fetch_elements(query)
+        """Fetch the requested POI type from Overpass and create any new POIs."""
+        poi_type = options["poi_type"]
+        label = POI.POIType(poi_type).label
+        self.stdout.write(f"Querying Overpass for {label} POIs (worldwide - can take a while)...")
+        elements = self._fetch_elements(QUERIES[poi_type])
         total = len(elements)
-        self.stdout.write(f"Fetched {total} passes, importing...")
+        self.stdout.write(f"Fetched {total} {label} POIs, importing...")
 
         created = 0
         for i, element in enumerate(elements, start=1):
             _, was_created = POI.objects.get_or_create(
                 name=element["tags"]["name"],
-                poi_type=POI.POIType.MOUNTAIN_PASS,
+                poi_type=poi_type,
                 defaults={
                     "location": Point(element["lon"], element["lat"], srid=4326),
                     "altitude_m": _parse_altitude(element["tags"].get("ele")),
@@ -62,7 +87,7 @@ class Command(BaseCommand):
         """POST a query to Overpass, retrying on transient server errors."""
         for attempt in range(1, MAX_ATTEMPTS + 1):
             response = requests.post(
-                OVERPASS_URL, data={"data": query}, headers=REQUEST_HEADERS, timeout=120
+                OVERPASS_URL, data={"data": query}, headers=REQUEST_HEADERS, timeout=200
             )
             if response.ok:
                 elements: list[dict[str, Any]] = response.json()["elements"]

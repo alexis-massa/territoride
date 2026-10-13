@@ -84,13 +84,13 @@
       );
     }
 
-    // Restore each layer checkbox from localStorage and keep it persisted,
+    // Restore every layer/POI-type checkbox from localStorage and keep it persisted,
     // independently of the per-layer load/clear listeners below.
-    ["toggle-grid", "toggle-territory", "toggle-routes", "toggle-pois"].forEach(function (id) {
-      var stored = localStorage.getItem(id);
-      if (stored !== null) document.getElementById(id).checked = stored === "true";
-      document.getElementById(id).addEventListener("change", function (e) {
-        localStorage.setItem(id, e.target.checked);
+    document.querySelectorAll("#layers-menu input[type=checkbox]").forEach(function (el) {
+      var stored = localStorage.getItem(el.id);
+      if (stored !== null) el.checked = stored === "true";
+      el.addEventListener("change", function (e) {
+        localStorage.setItem(el.id, e.target.checked);
       });
     });
 
@@ -156,17 +156,7 @@
         });
     }
 
-    var gridVisible = document.getElementById("toggle-grid").checked;
-
     map.on("load", function () {
-      map.addSource("grid", { type: "geojson", data: EMPTY_FC });
-      map.addLayer({
-        id: "grid-fill",
-        type: "fill",
-        source: "grid",
-        paint: { "fill-color": "#3388ff", "fill-opacity": 0.05, "fill-outline-color": "#000000" },
-      });
-
       map.addSource("territory", { type: "geojson", data: EMPTY_FC });
       map.addLayer({
         id: "territory-fill",
@@ -285,11 +275,6 @@
         });
       });
 
-      function updateGrid() {
-        if (!gridVisible) return;
-        loadSource("grid", "{% url 'grid_geojson' %}?bbox=" + encodeURIComponent(currentBbox()));
-      }
-
       function loadTerritory() {
         loadSource("territory", "{% url 'territory_geojson' %}");
       }
@@ -298,19 +283,8 @@
         loadSource("routes", "{% url 'routes_geojson' %}");
       }
 
-      map.on("moveend", updateGrid);
-      updateGrid();
       if (document.getElementById("toggle-territory").checked) loadTerritory();
       if (document.getElementById("toggle-routes").checked) loadRoutes();
-
-      document.getElementById("toggle-grid").addEventListener("change", function (e) {
-        gridVisible = e.target.checked;
-        if (gridVisible) {
-          updateGrid();
-        } else {
-          map.getSource("grid").setData(EMPTY_FC);
-        }
-      });
 
       document.getElementById("toggle-territory").addEventListener("change", function (e) {
         if (e.target.checked) {

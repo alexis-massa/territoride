@@ -17,7 +17,7 @@ from accounts.models import User
 
 from .capture import LOOP_CLOSE_TOLERANCE_M, POI_CAPTURE_RADIUS_M, capture_pois, capture_territory
 from .decay import DECAY_THRESHOLD_DAYS, current_value, elapsed_days
-from .grid import cell_boundary, cells_in_bbox
+from .grid import cell_boundary
 from .models import POI, Activity, TerritoryCell
 from .scoring import (
     DEFAULT_SPORT_MULTIPLIER,
@@ -65,24 +65,6 @@ def map_view(request: HttpRequest) -> HttpResponse:
         "game/map.html",
         {"decay_threshold_days": DECAY_THRESHOLD_DAYS, "default_bbox": default_bbox},
     )
-
-
-def grid_geojson_view(request: HttpRequest) -> HttpResponse:
-    """Grid cells covering the viewport's "bbox" query param, as GeoJSON."""
-    try:
-        min_lon, min_lat, max_lon, max_lat = _bbox_from_request(request)
-    except ValueError:
-        return HttpResponseBadRequest("bbox must be min_lon,min_lat,max_lon,max_lat")
-
-    features = [
-        {
-            "type": "Feature",
-            "geometry": {"type": "Polygon", "coordinates": [cell_boundary(cell)]},
-            "properties": {},
-        }
-        for cell in cells_in_bbox(min_lon, min_lat, max_lon, max_lat)
-    ]
-    return JsonResponse({"type": "FeatureCollection", "features": features})
 
 
 def _territory_feature(cell: TerritoryCell) -> dict[str, Any]:

@@ -63,7 +63,11 @@ def map_view(request: HttpRequest) -> HttpResponse:
     return render(
         request,
         "game/map.html",
-        {"decay_threshold_days": DECAY_THRESHOLD_DAYS, "default_bbox": default_bbox},
+        {
+            "decay_threshold_days": DECAY_THRESHOLD_DAYS,
+            "default_bbox": default_bbox,
+            "poi_types": POI.POIType.choices,
+        },
     )
 
 
@@ -120,6 +124,8 @@ def _poi_feature(poi: POI) -> dict[str, Any]:
         "geometry": json.loads(poi.location.geojson),
         "properties": {
             "name": poi.name,
+            "poi_type": poi.poi_type,
+            "poi_type_label": poi.get_poi_type_display(),
             "altitude_m": poi.altitude_m,
             "owner": poi.owner.username if poi.owner else None,
             "color": player_color(poi.owner.username) if poi.owner else None,

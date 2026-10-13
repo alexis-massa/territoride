@@ -22,9 +22,16 @@ class Activity(models.Model):
 
 
 class POI(models.Model):
-    """A capturable point of interest - mountain passes only for now."""
+    """A capturable point of interest - a mountain pass, summit, etc."""
+
+    class POIType(models.TextChoices):
+        MOUNTAIN_PASS = "mountain_pass", "Mountain pass"
+        SUMMIT = "summit", "Summit"
 
     name = models.CharField(max_length=255)
+    poi_type = models.CharField(
+        max_length=30, choices=POIType.choices, default=POIType.MOUNTAIN_PASS
+    )
     location = gis_models.PointField(srid=4326)
     altitude_m = models.IntegerField(null=True, blank=True)
     owner = models.ForeignKey(

@@ -20,9 +20,9 @@
       <ul class="rules-list">
         <li>The world is divided into small hexagonal tiles. Ride through one and it's yours ({{ cell_value }} points).</li>
         <li>If your ride is a loop (start and end within {{ loop_tolerance_m }}m of each other), you also claim every tile enclosed inside it - not just the ones you rode through.</li>
-        <li>Mountain passes are separate landmarks scattered worldwide. Ride within {{ poi_radius_m }}m of one to claim it - it's worth its altitude in points, so bigger passes are worth more.</li>
+        <li>Points of interest (mountain passes for now, more types to come) are separate landmarks scattered worldwide. Ride within {{ poi_radius_m }}m of one to claim it - it's worth its altitude in points, so bigger ones are worth more.</li>
         <li>Whoever rode it most recently owns it - always. There's no permanent ownership, so ride back through contested ground to take it.</li>
-        <li>Everything decays: a tile or pass loses value evenly over {{ decay_days }} days, and after {{ decay_days }} days it's released back to unclaimed automatically. Ride it again to keep it.</li>
+        <li>Everything decays: a tile or POI loses value evenly over {{ decay_days }} days, and after {{ decay_days }} days it's released back to unclaimed automatically. Ride it again to keep it.</li>
         <li>Your score is the sum of everything you currently hold, decay included - check the <a href="{% url 'leaderboard' %}">leaderboard</a> anytime.</li>
       </ul>
     </div>
@@ -30,16 +30,16 @@
     <div class="card" id="math">
       <h2 style="margin-top: 0;">The math</h2>
       <ul class="rules-list">
-        <li>Each tile is worth {{ cell_value }} points at the moment you capture it. Each pass is worth its altitude in meters, flat - sport doesn't change a pass's value, only a tile's.</li>
+        <li>Each tile is worth {{ cell_value }} points at the moment you capture it. Each POI is worth its altitude in meters, flat - sport doesn't change a POI's value, only a tile's.</li>
         <li>
           A tile's base value is multiplied by how you got there - cycling covers far more ground per hour than
           walking or swimming, so slower sports are weighted up to stay fair:
           {% for label, multiplier in sport_multipliers %}{{ label }} {{ multiplier|floatformat:0 }}&times;{% if not forloop.last %}, {% endif %}{% endfor %}.
-          Anything else (or a manually-uploaded GPX file, which carries no sport data) defaults to {{ default_multiplier|floatformat:0 }}&times;. Passes always score at 1&times; regardless of sport - otherwise driving most of the way up and hiking the last stretch to a high pass would be wildly overpowered.
+          Anything else (or a manually-uploaded GPX file, which carries no sport data) defaults to {{ default_multiplier|floatformat:0 }}&times;. POIs always score at 1&times; regardless of sport - otherwise driving most of the way up and hiking the last stretch to a high pass would be wildly overpowered.
         </li>
         <li>Swimming is the one exception: a pool is much smaller than a tile, so a flat per-tile multiplier would score a quick dip the same as a long swim. Swim tiles are valued by distance instead - <code>distance_km &times; {{ cell_value }} &times; 8</code> total, split evenly if a swim ever spans more than one tile.</li>
         <li>From there, value decays linearly: <code>value &times; (1 &minus; days_held / {{ decay_days }})</code> - so a tile captured 15 days ago is worth half what it was on day one, and 0 by day {{ decay_days }}.</li>
-        <li>Your total score is just the sum of every tile and pass you currently hold, decay already applied - nothing else factors in. The <a href="{% url 'leaderboard' %}">leaderboard</a> shows exactly this breakdown for every player.</li>
+        <li>Your total score is just the sum of every tile and POI you currently hold, decay already applied - nothing else factors in. The <a href="{% url 'leaderboard' %}">leaderboard</a> shows exactly this breakdown for every player.</li>
         <li>The multiplier only affects tile value, not ownership - anyone can still steal any tile regardless of sport, including a high-multiplier one. That's a deliberate tradeoff, not an oversight.</li>
       </ul>
     </div>

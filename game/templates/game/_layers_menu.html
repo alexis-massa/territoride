@@ -1,7 +1,12 @@
 <div id="layers-menu">
   <label><input type="checkbox" id="toggle-territory" checked> Territory</label>
   <label><input type="checkbox" id="toggle-routes" checked> Routes</label>
-  <label><input type="checkbox" id="toggle-pois" checked> Passes</label>
+  <details id="poi-types-menu">
+    <summary>Points of interest</summary>
+    {% for value, label in poi_types %}
+      <label><input type="checkbox" class="poi-type-toggle" data-poi-type="{{ value }}" id="poi-type-{{ value }}" checked> {{ label }}</label>
+    {% endfor %}
+  </details>
 </div>
 <style>
   #layers-menu {
@@ -17,4 +22,12 @@
     flex-direction: column;
     gap: 0.25rem;
   }
+  #poi-types-menu summary {
+    cursor: pointer;
+    list-style: none;
+  }
+  #poi-types-menu summary::-webkit-details-marker { display: none; }
+  #poi-types-menu summary::before { content: "\25b8\00a0"; }
+  #poi-types-menu[open] summary::before { content: "\25be\00a0"; }
+  #poi-types-menu label { display: block; padding-left: 1.1rem; margin-top: 0.25rem; }
 </style>

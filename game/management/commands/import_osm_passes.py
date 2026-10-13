@@ -42,6 +42,7 @@ class Command(BaseCommand):
         for i, element in enumerate(elements, start=1):
             _, was_created = POI.objects.get_or_create(
                 name=element["tags"]["name"],
+                poi_type=POI.POIType.MOUNTAIN_PASS,
                 defaults={
                     "location": Point(element["lon"], element["lat"], srid=4326),
                     "altitude_m": _parse_altitude(element["tags"].get("ele")),

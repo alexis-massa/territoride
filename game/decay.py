@@ -1,8 +1,11 @@
+import logging
 from datetime import datetime, timedelta
 
 from django.utils import timezone
 
 from .models import POI, Activity, TerritoryCell
+
+logger = logging.getLogger("game.decay")
 
 # Has no value after DECAY_THRESHOLD_DAYS days
 DECAY_THRESHOLD_DAYS = 30
@@ -30,5 +33,12 @@ def release_expired() -> int:
     pois = POI.objects.filter(claimed_at__lt=cutoff).update(
         owner=None, claimed_by=None, claimed_at=None
     )
-    Activity.objects.filter(recorded_at__lt=cutoff).delete()
+    deleted_activities, _ = Activity.objects.filter(recorded_at__lt=cutoff).delete()
+    if cells or pois or deleted_activities:
+        logger.info(
+            "Decay sweep: %d cell(s) released, %d POI(s) released, %d activity(ies) deleted",
+            cells,
+            pois,
+            deleted_activities,
+        )
     return cells + pois

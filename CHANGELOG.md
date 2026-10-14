@@ -6,6 +6,7 @@ appended automatically to `[Unreleased]` by a commit hook (see
 [README.md](README.md)); versions are cut and tagged on `main` by hand.
 
 ## [Unreleased]
+- feat: add timestamped logging for decay sweeps and ride imports
 - feat: add an offline Geofabrik-extract pipeline for POIs, as an alternative to live Overpass queries
 - feat: add an offline Geofabrik-extract pipeline for POIs, as an alternative to live Overpass queries
 - fix: don't blindly query regions anymore, keep track

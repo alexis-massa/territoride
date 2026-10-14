@@ -134,3 +134,37 @@ STRAVA_WEBHOOK_VERIFY_TOKEN = env("STRAVA_WEBHOOK_VERIFY_TOKEN", default="")
 # Encrypts stored Strava tokens (see accounts/crypto.py). Rotating this key
 # invalidates every stored token — players would need to reconnect Strava.
 TOKEN_ENCRYPTION_KEY = env("TOKEN_ENCRYPTION_KEY")
+
+LOGS_DIR = BASE_DIR / "logs"
+LOGS_DIR.mkdir(exist_ok=True)
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "timestamped": {
+            "format": "{asctime} {levelname} {name}: {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "timestamped",
+        },
+        "game_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": LOGS_DIR / "game.log",
+            "maxBytes": 5 * 1024 * 1024,
+            "backupCount": 3,
+            "formatter": "timestamped",
+        },
+    },
+    "loggers": {
+        "game": {
+            "handlers": ["console", "game_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}

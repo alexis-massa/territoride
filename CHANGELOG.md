@@ -6,6 +6,7 @@ appended automatically to `[Unreleased]` by a commit hook (see
 [README.md](README.md)); versions are cut and tagged on `main` by hand.
 
 ## [Unreleased]
+- fix: summit import no longer crashes on persistent 5xx/429 from Overpass
 - fix: summit import now splits regions that time out instead of silently returning nothing
 - fix: summit import now splits regions that time out instead of silently returning nothing
 - feat: import summits from OpenStreetMap, filtered by elevation/wikipedia/prominence

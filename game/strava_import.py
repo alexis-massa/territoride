@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from typing import Any
 
@@ -8,6 +9,8 @@ from accounts.models import User
 from .capture import capture_point, capture_pois, capture_territory
 from .models import Activity
 from .scoring import SWIM_SPORT_TYPES
+
+logger = logging.getLogger("game.strava_import")
 
 
 def decode_polyline(encoded: str) -> list[tuple[float, float]]:
@@ -51,6 +54,7 @@ def import_from_strava(user: User, strava_activities: list[dict[str, Any]]) -> t
     for raw in strava_activities:
         strava_id = raw["id"]
         if strava_id in known_ids:
+            _sync_metadata(strava_id, raw)
             continue
 
         sport_type = raw.get("sport_type", "")
@@ -84,12 +88,32 @@ def import_from_strava(user: User, strava_activities: list[dict[str, Any]]) -> t
         )
         imported += 1
         if points is None:
-            pass
+            activity_cells = 0
         elif point_only:
             lat, lng = points[0]
-            cells += capture_point(activity, lat, lng)
+            activity_cells = capture_point(activity, lat, lng)
         else:
-            cells += capture_territory(activity)
-        if activity.track is not None:
-            pois += capture_pois(activity)
+            activity_cells = capture_territory(activity)
+        cells += activity_cells
+        activity_pois = capture_pois(activity) if activity.track is not None else 0
+        pois += activity_pois
+        logger.info(
+            "Imported %r (%s) for %s: %d cell(s), %d POI(s) captured",
+            activity.name,
+            sport_type,
+            user.username,
+            activity_cells,
+            activity_pois,
+        )
     return imported, cells, pois
+
+
+def _sync_metadata(strava_id: int, raw: dict[str, Any]) -> None:
+    """Keep editable fields in sync on a Strava update event, without re-running capture."""
+    distance = raw.get("distance")
+    Activity.objects.filter(strava_activity_id=strava_id).update(
+        name=raw["name"],
+        sport_type=raw.get("sport_type", ""),
+        distance_m=round(distance) if distance is not None else None,
+    )
+    logger.info("Synced metadata for Strava activity %s: %r", strava_id, raw["name"])

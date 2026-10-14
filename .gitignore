@@ -4,6 +4,7 @@ __pycache__/
 db.sqlite3
 staticfiles/
 media/
+.osm_import_pending_*.json
 
 .env
 .mypy_cache/

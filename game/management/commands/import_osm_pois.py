@@ -1,5 +1,8 @@
+import json
 import random
 import time
+from collections import deque
+from pathlib import Path
 from typing import Any
 
 import requests
@@ -10,37 +13,23 @@ from game.models import POI
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
-# Overpass's shared public instance; rejects requests with no User-Agent.
+# Rejects requests with no User-Agent.
 MAX_ATTEMPTS = 3
-# Pace between every request (not just retries) - splitting fires several requests
-# back to back, which was hammering an already-struggling server and cascading
-# timeouts onto unrelated, otherwise-fast regions. Doubles on failure (up to the
-# cap), halves back down on success, so one bad patch slows the whole run down
-# instead of just retrying into the same wall.
+# Only escalates on 429 - a 5xx/timeout on an oversized bbox is instant and unrelated to pace.
 BASE_PACE_SECONDS = 2.0
 MAX_PACE_SECONDS = 60.0
 REQUEST_HEADERS = {"User-Agent": "TerritoRide/0.1 (hobby project; not for production use)"}
 QUERY_TIMEOUT_SECONDS = 25
 HTTP_TIMEOUT_SECONDS = 40
 
-# A region that times out gets quartered and retried piece by piece. Deliberately
-# very deep - a real region should never need anywhere near this; if it does,
-# the server is just down, not the region being dense, and no amount of
-# further splitting would help (the request budget below is what stops that).
 MAX_SPLIT_DEPTH = 20
-# Hard cap on total requests, in case a bug or a persistently down server keeps
-# splitting forever. Generous on purpose - a thorough worldwide run can take all
-# day and legitimately need many thousands of requests once the Alps/Himalaya/
-# Andes/Rockies start splitting.
 MAX_TOTAL_REQUESTS = 100000
 
-# Summits need a real elevation (unscoreable without one) plus some sign of
-# significance - a high elevation, a Wikipedia article, or tagged prominence.
 SUMMIT_MIN_ELEVATION_M = 1000
 
 WORLD_BBOX = (-180.0, -90.0, 180.0, 90.0)  # (west, south, east, north)
 
-# Node-matching statement only - _fetch_region adds the header/footer.
+# Node-matching statement only - _run_queue adds the header/footer.
 QUERY_STATEMENTS = {
     POI.POIType.MOUNTAIN_PASS: 'node["mountain_pass"="yes"]["name"];',
     POI.POIType.SUMMIT: (
@@ -74,6 +63,12 @@ def _retry_after_seconds(response: requests.Response) -> float | None:
         return None
 
 
+def _format_bbox(bbox: tuple[float, float, float, float]) -> str:
+    """Render a bbox as readable coordinates instead of a raw float tuple."""
+    west, south, east, north = bbox
+    return f"({west:.1f},{south:.1f})-({east:.1f},{north:.1f})"
+
+
 class Command(BaseCommand):
     help = "Import named POIs (mountain passes or summits) from OpenStreetMap, worldwide"
 
@@ -85,30 +80,50 @@ class Command(BaseCommand):
         """Fetch the requested POI type from Overpass, importing each batch as it arrives."""
         self._poi_type = options["poi_type"]
         label = POI.POIType(self._poi_type).label
-        self.stdout.write(f"Querying Overpass for {label} POIs (worldwide - can take a while)...")
+        self.stdout.write(self.style.MIGRATE_HEADING(f"Importing {label} POIs worldwide"))
         self._request_count = 0
         self._pace_seconds = BASE_PACE_SECONDS
-        self._hit_budget = False
+        self._depth = 0
         self._fetched = 0
         self._created = 0
 
+        self._stuck: list[tuple[float, float, float, float, int]] = []
+        pending_path = self._pending_path()
+        if pending_path.exists():
+            queue = deque(tuple(entry) for entry in json.loads(pending_path.read_text()))
+            self.stdout.write(f"Resuming {len(queue)} region(s) left over from a previous run")
+        else:
+            queue = deque([(*WORLD_BBOX, 0)])
+
         try:
-            self._fetch_region(QUERY_STATEMENTS[self._poi_type], WORLD_BBOX, depth=0)
+            self._run_queue(QUERY_STATEMENTS[self._poi_type], queue, pending_path)
         except KeyboardInterrupt:
             self.stdout.write(self.style.WARNING("\nStopped - everything fetched so far is saved."))
 
-        if self._hit_budget:
+        remaining = list(queue) + self._stuck
+        if remaining:
+            pending_path.write_text(json.dumps(remaining))
             self.stdout.write(
                 self.style.WARNING(
-                    f"WARNING: hit the {MAX_TOTAL_REQUESTS}-request budget - some regions were "
-                    "never fetched, so this import is incomplete. Re-run to pick up more."
+                    f"{len(remaining)} region(s) still pending in {pending_path.name} - "
+                    "re-run this command to pick up where it left off."
                 )
             )
+        else:
+            pending_path.unlink(missing_ok=True)
         skipped = self._fetched - self._created
         self.stdout.write(
-            f"Created {self._created} new POIs from OpenStreetMap "
-            f"({skipped} already existed, {self._fetched} fetched total)"
+            self.style.SUCCESS(
+                f"Done: {self._created} new POIs ({skipped} already existed, "
+                f"{self._fetched} fetched total)"
+            )
         )
+
+    def _pending_path(self) -> Path:
+        return Path(f".osm_import_pending_{self._poi_type}.json")
+
+    def _indent(self) -> str:
+        return "  " * self._depth
 
     def _import_elements(self, elements: list[dict[str, Any]]) -> None:
         """Create any new POIs from a fetched batch immediately, so nothing is lost if stopped."""
@@ -125,45 +140,56 @@ class Command(BaseCommand):
             if was_created:
                 self._created += 1
         if elements:
-            self.stdout.write(f"  imported {len(elements)} ({self._created} new so far)")
+            self.stdout.write(f"{self._indent()}+ {len(elements)} ({self._created} new so far)")
 
-    def _fetch_region(
-        self, statement: str, bbox: tuple[float, float, float, float], depth: int
+    def _run_queue(
+        self,
+        statement: str,
+        queue: "deque[tuple[float, float, float, float, int]]",
+        pending_path: Path,
     ) -> None:
-        """Fetch and import a bbox, recursively quartering it if Overpass times out."""
-        if self._request_count >= MAX_TOTAL_REQUESTS:
-            self._hit_budget = True
-            return
-
-        west, south, east, north = bbox
-        query = (
-            f"[out:json][timeout:{QUERY_TIMEOUT_SECONDS}][bbox:{south},{west},{north},{east}];"
-            f"{statement}out body;"
-        )
-        try:
-            self._import_elements(self._fetch_elements(query))
-        except _QueryTimedOut:
-            if depth >= MAX_SPLIT_DEPTH:
-                self.stdout.write(f"  {bbox} still times out at max split depth, skipping")
+        """Process regions breadth-first, quartering any that time out, until the queue drains."""
+        while queue:
+            if self._request_count >= MAX_TOTAL_REQUESTS:
                 return
-            self.stdout.write(f"  {bbox} timed out, splitting into quadrants...")
-            mid_lon, mid_lat = (west + east) / 2, (south + north) / 2
-            quadrants = [
-                (west, south, mid_lon, mid_lat),
-                (mid_lon, south, east, mid_lat),
-                (west, mid_lat, mid_lon, north),
-                (mid_lon, mid_lat, east, north),
-            ]
-            # Shuffled so a budget cutoff doesn't always truncate the same region first.
-            random.shuffle(quadrants)
-            for quadrant in quadrants:
-                self._fetch_region(statement, quadrant, depth + 1)
+            west, south, east, north, depth = queue[0]
+            self._depth = depth
+            query = (
+                f"[out:json][timeout:{QUERY_TIMEOUT_SECONDS}][bbox:{south},{west},{north},{east}];"
+                f"{statement}out body;"
+            )
+            try:
+                self._import_elements(self._fetch_elements(query))
+            except _QueryTimedOut:
+                bbox = (west, south, east, north)
+                if depth >= MAX_SPLIT_DEPTH:
+                    self.stdout.write(
+                        self.style.ERROR(f"{self._indent()}x {_format_bbox(bbox)} still failing, deferring")
+                    )
+                    self._stuck.append(queue.popleft())
+                else:
+                    self.stdout.write(f"{self._indent()}~ {_format_bbox(bbox)} splitting...")
+                    queue.popleft()
+                    mid_lon, mid_lat = (west + east) / 2, (south + north) / 2
+                    quadrants = [
+                        (west, south, mid_lon, mid_lat, depth + 1),
+                        (mid_lon, south, east, mid_lat, depth + 1),
+                        (west, mid_lat, mid_lon, north, depth + 1),
+                        (mid_lon, mid_lat, east, north, depth + 1),
+                    ]
+                    random.shuffle(quadrants)  # don't always starve the same quadrant on cutoff
+                    queue.extend(quadrants)
+            else:
+                queue.popleft()
+            pending_path.write_text(json.dumps(list(queue) + self._stuck))
 
     def _slow_down(self) -> None:
-        """Double the inter-request pace after a failure, up to MAX_PACE_SECONDS."""
+        """Double the inter-request pace after a 429, up to MAX_PACE_SECONDS."""
         new_pace = min(self._pace_seconds * 2, MAX_PACE_SECONDS)
         if new_pace > self._pace_seconds:
-            self.stdout.write(f"  backing off to {new_pace:.0f}s between requests")
+            self.stdout.write(
+                self.style.WARNING(f"{self._indent()}! backing off to {new_pace:.0f}s between requests")
+            )
         self._pace_seconds = new_pace
 
     def _speed_up(self) -> None:
@@ -171,8 +197,7 @@ class Command(BaseCommand):
         self._pace_seconds = max(self._pace_seconds / 2, BASE_PACE_SECONDS)
 
     def _fetch_elements(self, query: str) -> list[dict[str, Any]]:
-        """POST to Overpass; a persistent 5xx or a timeout remark both raise _QueryTimedOut."""
-        status_code = None
+        """POST to Overpass; only 429 is retried in place - everything else splits instead."""
         for attempt in range(1, MAX_ATTEMPTS + 1):
             if self._request_count:
                 time.sleep(self._pace_seconds)
@@ -182,25 +207,23 @@ class Command(BaseCommand):
                     OVERPASS_URL, data={"data": query}, headers=REQUEST_HEADERS,
                     timeout=HTTP_TIMEOUT_SECONDS,
                 )
-            except requests.exceptions.Timeout:
-                self._slow_down()
-                raise _QueryTimedOut("client-side request timeout") from None
+            except requests.exceptions.RequestException as exc:
+                raise _QueryTimedOut(str(exc)) from None
             if response.ok:
                 payload = response.json()
                 if "remark" in payload:
-                    self._slow_down()
                     raise _QueryTimedOut(payload["remark"])
                 self._speed_up()
                 elements: list[dict[str, Any]] = payload["elements"]
                 return elements
             status_code = response.status_code
-            if status_code < 500 and status_code != 429:
-                response.raise_for_status()
+            if status_code != 429:
+                if status_code < 500:
+                    response.raise_for_status()
+                raise _QueryTimedOut(f"HTTP {status_code}")
             self._slow_down()
             if attempt < MAX_ATTEMPTS:
                 delay = _retry_after_seconds(response) or self._pace_seconds
-                self.stdout.write(
-                    f"Overpass returned {status_code}, retrying ({attempt}/{MAX_ATTEMPTS})..."
-                )
+                self.stdout.write(f"{self._indent()}! 429, retrying ({attempt}/{MAX_ATTEMPTS})...")
                 time.sleep(delay)
-        raise _QueryTimedOut(f"HTTP {status_code} after {MAX_ATTEMPTS} attempts")
+        raise _QueryTimedOut(f"HTTP 429 after {MAX_ATTEMPTS} attempts")

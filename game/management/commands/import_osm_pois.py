@@ -9,32 +9,38 @@ from game.models import POI
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
-# The public Overpass instance is a shared, sometimes-overloaded community
-# service - retry a couple of times before giving up. It also rejects
-# requests with no identifying User-Agent (its usage policy asks for one).
+# Overpass's shared public instance; rejects requests with no User-Agent.
 MAX_ATTEMPTS = 3
 RETRY_DELAY_SECONDS = 5
 REQUEST_HEADERS = {"User-Agent": "TerritoRide/0.1 (hobby project; not for production use)"}
+QUERY_TIMEOUT_SECONDS = 90
+HTTP_TIMEOUT_SECONDS = 120
 
-# Summits worldwide number in the millions - named ones alone are still huge,
-# so also require elevation data (no altitude, no points - not worth
-# importing) and some sign of significance: a notably high elevation, a
-# Wikipedia article, or a tagged topographic prominence. Any one is enough.
+# A region that times out gets quartered and retried piece by piece.
+MAX_SPLIT_DEPTH = 6
+# Hard cap on total requests, in case a bug or a pathological region keeps splitting.
+MAX_TOTAL_REQUESTS = 400
+
+# Summits need a real elevation (unscoreable without one) plus some sign of
+# significance - a high elevation, a Wikipedia article, or tagged prominence.
 SUMMIT_MIN_ELEVATION_M = 1000
 
-QUERIES = {
-    POI.POIType.MOUNTAIN_PASS: (
-        '[out:json][timeout:90];node["mountain_pass"="yes"]["name"];out body;'
-    ),
+WORLD_BBOX = (-180.0, -90.0, 180.0, 90.0)  # (west, south, east, north)
+
+# Node-matching statement only - _fetch_region adds the header/footer.
+QUERY_STATEMENTS = {
+    POI.POIType.MOUNTAIN_PASS: 'node["mountain_pass"="yes"]["name"];',
     POI.POIType.SUMMIT: (
-        "[out:json][timeout:180];"
         'node["natural"="peak"]["name"]'
         '(if: t["ele"] != "" && ('
         f'number(t["ele"]) > {SUMMIT_MIN_ELEVATION_M}'
         ' || t["wikipedia"] != "" || t["prominence"] != ""));'
-        "out body;"
     ),
 }
+
+
+class _QueryTimedOut(Exception):
+    """Overpass accepted the request (HTTP 200) but its own runtime timed out."""
 
 
 def _parse_altitude(ele: str | None) -> int | None:
@@ -59,7 +65,8 @@ class Command(BaseCommand):
         poi_type = options["poi_type"]
         label = POI.POIType(poi_type).label
         self.stdout.write(f"Querying Overpass for {label} POIs (worldwide - can take a while)...")
-        elements = self._fetch_elements(QUERIES[poi_type])
+        self._request_count = 0
+        elements = self._fetch_region(QUERY_STATEMENTS[poi_type], WORLD_BBOX, depth=0)
         total = len(elements)
         self.stdout.write(f"Fetched {total} {label} POIs, importing...")
 
@@ -83,14 +90,51 @@ class Command(BaseCommand):
             f"Created {created} new POIs from OpenStreetMap ({skipped} already existed)"
         )
 
+    def _fetch_region(
+        self, statement: str, bbox: tuple[float, float, float, float], depth: int
+    ) -> list[dict[str, Any]]:
+        """Fetch elements for a bbox, recursively quartering it if Overpass times out."""
+        if self._request_count >= MAX_TOTAL_REQUESTS:
+            self.stdout.write(f"  {bbox} skipped, hit the {MAX_TOTAL_REQUESTS}-request budget")
+            return []
+
+        west, south, east, north = bbox
+        query = (
+            f"[out:json][timeout:{QUERY_TIMEOUT_SECONDS}][bbox:{south},{west},{north},{east}];"
+            f"{statement}out body;"
+        )
+        try:
+            return self._fetch_elements(query)
+        except _QueryTimedOut:
+            if depth >= MAX_SPLIT_DEPTH:
+                self.stdout.write(f"  {bbox} still times out at max split depth, skipping")
+                return []
+            self.stdout.write(f"  {bbox} timed out, splitting into quadrants...")
+            mid_lon, mid_lat = (west + east) / 2, (south + north) / 2
+            quadrants = [
+                (west, south, mid_lon, mid_lat),
+                (mid_lon, south, east, mid_lat),
+                (west, mid_lat, mid_lon, north),
+                (mid_lon, mid_lat, east, north),
+            ]
+            elements: list[dict[str, Any]] = []
+            for quadrant in quadrants:
+                elements.extend(self._fetch_region(statement, quadrant, depth + 1))
+            return elements
+
     def _fetch_elements(self, query: str) -> list[dict[str, Any]]:
-        """POST a query to Overpass, retrying on transient server errors."""
+        """POST to Overpass, retrying on server errors; raises _QueryTimedOut on a remark."""
         for attempt in range(1, MAX_ATTEMPTS + 1):
+            self._request_count += 1
             response = requests.post(
-                OVERPASS_URL, data={"data": query}, headers=REQUEST_HEADERS, timeout=200
+                OVERPASS_URL, data={"data": query}, headers=REQUEST_HEADERS,
+                timeout=HTTP_TIMEOUT_SECONDS,
             )
             if response.ok:
-                elements: list[dict[str, Any]] = response.json()["elements"]
+                payload = response.json()
+                if "remark" in payload:
+                    raise _QueryTimedOut(payload["remark"])
+                elements: list[dict[str, Any]] = payload["elements"]
                 return elements
             if attempt == MAX_ATTEMPTS or response.status_code < 500:
                 response.raise_for_status()

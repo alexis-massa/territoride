@@ -13,10 +13,12 @@ Usage:
 import argparse
 import json
 import sys
+import time
 
 import osmium
 
 SUMMIT_MIN_ELEVATION_M = 1000
+HEARTBEAT_EVERY_N_NODES = 20_000_000
 
 
 def _parse_altitude(ele: str | None) -> int | None:
@@ -34,8 +36,19 @@ class _Handler(osmium.SimpleHandler):
         self.poi_type = poi_type
         self.out = out
         self.matched = 0
+        self.scanned = 0
+        self._start = time.monotonic()
 
     def node(self, n: osmium.osm.Node) -> None:
+        self.scanned += 1
+        if self.scanned % HEARTBEAT_EVERY_N_NODES == 0:
+            elapsed = time.monotonic() - self._start
+            rate = self.scanned / elapsed
+            print(
+                f"  ...{self.scanned:,} nodes scanned, {self.matched} matched "
+                f"({elapsed:.0f}s, {rate:,.0f} nodes/s)",
+                file=sys.stderr,
+            )
         name = n.tags.get("name")
         if not name:
             return
@@ -74,9 +87,12 @@ def main() -> None:
     parser.add_argument("pbf_path")
     args = parser.parse_args()
 
+    print(f"Scanning {args.pbf_path}...", file=sys.stderr)
+    start = time.monotonic()
     handler = _Handler(args.poi_type, sys.stdout)
     handler.apply_file(args.pbf_path)
-    print(f"{handler.matched} matched", file=sys.stderr)
+    elapsed = time.monotonic() - start
+    print(f"{args.pbf_path}: {handler.matched} matched in {elapsed:.0f}s", file=sys.stderr)
 
 
 if __name__ == "__main__":

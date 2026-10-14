@@ -11,11 +11,13 @@ OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
 # Overpass's shared public instance; rejects requests with no User-Agent.
 MAX_ATTEMPTS = 3
-RETRY_DELAY_SECONDS = 5
-# Paced between every single request (not just retries) - splitting fires several
-# requests back to back, which was hammering an already-struggling server and
-# making timeouts cascade across unrelated, otherwise-fast regions.
-REQUEST_PACE_SECONDS = 2
+# Pace between every request (not just retries) - splitting fires several requests
+# back to back, which was hammering an already-struggling server and cascading
+# timeouts onto unrelated, otherwise-fast regions. Doubles on failure (up to the
+# cap), halves back down on success, so one bad patch slows the whole run down
+# instead of just retrying into the same wall.
+BASE_PACE_SECONDS = 2.0
+MAX_PACE_SECONDS = 60.0
 REQUEST_HEADERS = {"User-Agent": "TerritoRide/0.1 (hobby project; not for production use)"}
 QUERY_TIMEOUT_SECONDS = 25
 HTTP_TIMEOUT_SECONDS = 40
@@ -78,6 +80,7 @@ class Command(BaseCommand):
         label = POI.POIType(poi_type).label
         self.stdout.write(f"Querying Overpass for {label} POIs (worldwide - can take a while)...")
         self._request_count = 0
+        self._pace_seconds = BASE_PACE_SECONDS
         elements = self._fetch_region(QUERY_STATEMENTS[poi_type], WORLD_BBOX, depth=0)
         total = len(elements)
         self.stdout.write(f"Fetched {total} {label} POIs, importing...")
@@ -134,12 +137,23 @@ class Command(BaseCommand):
                 elements.extend(self._fetch_region(statement, quadrant, depth + 1))
             return elements
 
+    def _slow_down(self) -> None:
+        """Double the inter-request pace after a failure, up to MAX_PACE_SECONDS."""
+        new_pace = min(self._pace_seconds * 2, MAX_PACE_SECONDS)
+        if new_pace > self._pace_seconds:
+            self.stdout.write(f"  backing off to {new_pace:.0f}s between requests")
+        self._pace_seconds = new_pace
+
+    def _speed_up(self) -> None:
+        """Halve the inter-request pace after a clean success, down to BASE_PACE_SECONDS."""
+        self._pace_seconds = max(self._pace_seconds / 2, BASE_PACE_SECONDS)
+
     def _fetch_elements(self, query: str) -> list[dict[str, Any]]:
         """POST to Overpass; a persistent 5xx or a timeout remark both raise _QueryTimedOut."""
         status_code = None
         for attempt in range(1, MAX_ATTEMPTS + 1):
             if self._request_count:
-                time.sleep(REQUEST_PACE_SECONDS)
+                time.sleep(self._pace_seconds)
             self._request_count += 1
             try:
                 response = requests.post(
@@ -147,18 +161,22 @@ class Command(BaseCommand):
                     timeout=HTTP_TIMEOUT_SECONDS,
                 )
             except requests.exceptions.Timeout:
+                self._slow_down()
                 raise _QueryTimedOut("client-side request timeout") from None
             if response.ok:
                 payload = response.json()
                 if "remark" in payload:
+                    self._slow_down()
                     raise _QueryTimedOut(payload["remark"])
+                self._speed_up()
                 elements: list[dict[str, Any]] = payload["elements"]
                 return elements
             status_code = response.status_code
             if status_code < 500 and status_code != 429:
                 response.raise_for_status()
+            self._slow_down()
             if attempt < MAX_ATTEMPTS:
-                delay = _retry_after_seconds(response) or RETRY_DELAY_SECONDS
+                delay = _retry_after_seconds(response) or self._pace_seconds
                 self.stdout.write(
                     f"Overpass returned {status_code}, retrying ({attempt}/{MAX_ATTEMPTS})..."
                 )

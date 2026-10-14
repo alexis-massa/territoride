@@ -12,6 +12,10 @@ OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 # Overpass's shared public instance; rejects requests with no User-Agent.
 MAX_ATTEMPTS = 3
 RETRY_DELAY_SECONDS = 5
+# Paced between every single request (not just retries) - splitting fires several
+# requests back to back, which was hammering an already-struggling server and
+# making timeouts cascade across unrelated, otherwise-fast regions.
+REQUEST_PACE_SECONDS = 2
 REQUEST_HEADERS = {"User-Agent": "TerritoRide/0.1 (hobby project; not for production use)"}
 QUERY_TIMEOUT_SECONDS = 25
 HTTP_TIMEOUT_SECONDS = 40
@@ -134,6 +138,8 @@ class Command(BaseCommand):
         """POST to Overpass; a persistent 5xx or a timeout remark both raise _QueryTimedOut."""
         status_code = None
         for attempt in range(1, MAX_ATTEMPTS + 1):
+            if self._request_count:
+                time.sleep(REQUEST_PACE_SECONDS)
             self._request_count += 1
             try:
                 response = requests.post(

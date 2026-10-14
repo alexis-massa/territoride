@@ -6,6 +6,8 @@ appended automatically to `[Unreleased]` by a commit hook (see
 [README.md](README.md)); versions are cut and tagged on `main` by hand.
 
 ## [Unreleased]
+- feat: add an offline Geofabrik-extract pipeline for POIs, as an alternative to live Overpass queries
+- feat: add an offline Geofabrik-extract pipeline for POIs, as an alternative to live Overpass queries
 - fix: don't blindly query regions anymore, keep track
 - feat: stream summit import as each region fetches, so stopping early loses nothing
 - fix: raise the request budget and shuffle region order to stop systematic undercounting

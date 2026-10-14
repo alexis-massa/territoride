@@ -5,6 +5,8 @@ db.sqlite3
 staticfiles/
 media/
 .osm_import_pending_*.json
+*.osm.pbf
+*.ndjson
 
 .env
 .mypy_cache/

@@ -6,6 +6,10 @@ appended automatically to `[Unreleased]` by a commit hook (see
 [README.md](README.md)); versions are cut and tagged on `main` by hand.
 
 ## [Unreleased]
+- feat: stream summit import as each region fetches, so stopping early loses nothing
+- fix: raise the request budget and shuffle region order to stop systematic undercounting
+- fix: back off adaptively (doubling to 60s cap) instead of a flat request pace
+- fix: pace Overpass requests to stop self-inflicted cascading timeouts
 - fix: summit import no longer crashes on persistent 5xx/429 from Overpass
 - fix: summit import now splits regions that time out instead of silently returning nothing
 - fix: summit import now splits regions that time out instead of silently returning nothing

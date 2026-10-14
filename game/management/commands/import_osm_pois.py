@@ -23,13 +23,16 @@ REQUEST_HEADERS = {"User-Agent": "TerritoRide/0.1 (hobby project; not for produc
 QUERY_TIMEOUT_SECONDS = 25
 HTTP_TIMEOUT_SECONDS = 40
 
-# A region that times out gets quartered and retried piece by piece.
-MAX_SPLIT_DEPTH = 6
-# Hard cap on total requests, in case a bug or a pathological region keeps splitting.
-# Generous on purpose - a real worldwide run legitimately needs many thousands
-# of requests once the Alps/Himalaya/Andes/Rockies start splitting; this is a
-# backstop against runaway recursion, not a practical operating limit.
-MAX_TOTAL_REQUESTS = 20000
+# A region that times out gets quartered and retried piece by piece. Deliberately
+# very deep - a real region should never need anywhere near this; if it does,
+# the server is just down, not the region being dense, and no amount of
+# further splitting would help (the request budget below is what stops that).
+MAX_SPLIT_DEPTH = 20
+# Hard cap on total requests, in case a bug or a persistently down server keeps
+# splitting forever. Generous on purpose - a thorough worldwide run can take all
+# day and legitimately need many thousands of requests once the Alps/Himalaya/
+# Andes/Rockies start splitting.
+MAX_TOTAL_REQUESTS = 100000
 
 # Summits need a real elevation (unscoreable without one) plus some sign of
 # significance - a high elevation, a Wikipedia article, or tagged prominence.
@@ -79,16 +82,21 @@ class Command(BaseCommand):
         parser.add_argument("poi_type", choices=POI.POIType.values)
 
     def handle(self, *args: Any, **options: Any) -> None:
-        """Fetch the requested POI type from Overpass and create any new POIs."""
-        poi_type = options["poi_type"]
-        label = POI.POIType(poi_type).label
+        """Fetch the requested POI type from Overpass, importing each batch as it arrives."""
+        self._poi_type = options["poi_type"]
+        label = POI.POIType(self._poi_type).label
         self.stdout.write(f"Querying Overpass for {label} POIs (worldwide - can take a while)...")
         self._request_count = 0
         self._pace_seconds = BASE_PACE_SECONDS
         self._hit_budget = False
-        elements = self._fetch_region(QUERY_STATEMENTS[poi_type], WORLD_BBOX, depth=0)
-        total = len(elements)
-        self.stdout.write(f"Fetched {total} {label} POIs, importing...")
+        self._fetched = 0
+        self._created = 0
+
+        try:
+            self._fetch_region(QUERY_STATEMENTS[self._poi_type], WORLD_BBOX, depth=0)
+        except KeyboardInterrupt:
+            self.stdout.write(self.style.WARNING("\nStopped - everything fetched so far is saved."))
+
         if self._hit_budget:
             self.stdout.write(
                 self.style.WARNING(
@@ -96,34 +104,36 @@ class Command(BaseCommand):
                     "never fetched, so this import is incomplete. Re-run to pick up more."
                 )
             )
+        skipped = self._fetched - self._created
+        self.stdout.write(
+            f"Created {self._created} new POIs from OpenStreetMap "
+            f"({skipped} already existed, {self._fetched} fetched total)"
+        )
 
-        created = 0
-        for i, element in enumerate(elements, start=1):
+    def _import_elements(self, elements: list[dict[str, Any]]) -> None:
+        """Create any new POIs from a fetched batch immediately, so nothing is lost if stopped."""
+        for element in elements:
             _, was_created = POI.objects.get_or_create(
                 name=element["tags"]["name"],
-                poi_type=poi_type,
+                poi_type=self._poi_type,
                 defaults={
                     "location": Point(element["lon"], element["lat"], srid=4326),
                     "altitude_m": _parse_altitude(element["tags"].get("ele")),
                 },
             )
+            self._fetched += 1
             if was_created:
-                created += 1
-            if i % 1000 == 0 or i == total:
-                self.stdout.write(f"  {i}/{total} processed ({created} new so far)")
-
-        skipped = total - created
-        self.stdout.write(
-            f"Created {created} new POIs from OpenStreetMap ({skipped} already existed)"
-        )
+                self._created += 1
+        if elements:
+            self.stdout.write(f"  imported {len(elements)} ({self._created} new so far)")
 
     def _fetch_region(
         self, statement: str, bbox: tuple[float, float, float, float], depth: int
-    ) -> list[dict[str, Any]]:
-        """Fetch elements for a bbox, recursively quartering it if Overpass times out."""
+    ) -> None:
+        """Fetch and import a bbox, recursively quartering it if Overpass times out."""
         if self._request_count >= MAX_TOTAL_REQUESTS:
             self._hit_budget = True
-            return []
+            return
 
         west, south, east, north = bbox
         query = (
@@ -131,11 +141,11 @@ class Command(BaseCommand):
             f"{statement}out body;"
         )
         try:
-            return self._fetch_elements(query)
+            self._import_elements(self._fetch_elements(query))
         except _QueryTimedOut:
             if depth >= MAX_SPLIT_DEPTH:
                 self.stdout.write(f"  {bbox} still times out at max split depth, skipping")
-                return []
+                return
             self.stdout.write(f"  {bbox} timed out, splitting into quadrants...")
             mid_lon, mid_lat = (west + east) / 2, (south + north) / 2
             quadrants = [
@@ -146,10 +156,8 @@ class Command(BaseCommand):
             ]
             # Shuffled so a budget cutoff doesn't always truncate the same region first.
             random.shuffle(quadrants)
-            elements: list[dict[str, Any]] = []
             for quadrant in quadrants:
-                elements.extend(self._fetch_region(statement, quadrant, depth + 1))
-            return elements
+                self._fetch_region(statement, quadrant, depth + 1)
 
     def _slow_down(self) -> None:
         """Double the inter-request pace after a failure, up to MAX_PACE_SECONDS."""

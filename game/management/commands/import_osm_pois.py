@@ -1,3 +1,4 @@
+import random
 import time
 from typing import Any
 
@@ -25,7 +26,10 @@ HTTP_TIMEOUT_SECONDS = 40
 # A region that times out gets quartered and retried piece by piece.
 MAX_SPLIT_DEPTH = 6
 # Hard cap on total requests, in case a bug or a pathological region keeps splitting.
-MAX_TOTAL_REQUESTS = 400
+# Generous on purpose - a real worldwide run legitimately needs many thousands
+# of requests once the Alps/Himalaya/Andes/Rockies start splitting; this is a
+# backstop against runaway recursion, not a practical operating limit.
+MAX_TOTAL_REQUESTS = 20000
 
 # Summits need a real elevation (unscoreable without one) plus some sign of
 # significance - a high elevation, a Wikipedia article, or tagged prominence.
@@ -81,9 +85,17 @@ class Command(BaseCommand):
         self.stdout.write(f"Querying Overpass for {label} POIs (worldwide - can take a while)...")
         self._request_count = 0
         self._pace_seconds = BASE_PACE_SECONDS
+        self._hit_budget = False
         elements = self._fetch_region(QUERY_STATEMENTS[poi_type], WORLD_BBOX, depth=0)
         total = len(elements)
         self.stdout.write(f"Fetched {total} {label} POIs, importing...")
+        if self._hit_budget:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"WARNING: hit the {MAX_TOTAL_REQUESTS}-request budget - some regions were "
+                    "never fetched, so this import is incomplete. Re-run to pick up more."
+                )
+            )
 
         created = 0
         for i, element in enumerate(elements, start=1):
@@ -110,7 +122,7 @@ class Command(BaseCommand):
     ) -> list[dict[str, Any]]:
         """Fetch elements for a bbox, recursively quartering it if Overpass times out."""
         if self._request_count >= MAX_TOTAL_REQUESTS:
-            self.stdout.write(f"  {bbox} skipped, hit the {MAX_TOTAL_REQUESTS}-request budget")
+            self._hit_budget = True
             return []
 
         west, south, east, north = bbox
@@ -132,6 +144,8 @@ class Command(BaseCommand):
                 (west, mid_lat, mid_lon, north),
                 (mid_lon, mid_lat, east, north),
             ]
+            # Shuffled so a budget cutoff doesn't always truncate the same region first.
+            random.shuffle(quadrants)
             elements: list[dict[str, Any]] = []
             for quadrant in quadrants:
                 elements.extend(self._fetch_region(statement, quadrant, depth + 1))

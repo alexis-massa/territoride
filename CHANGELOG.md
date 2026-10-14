@@ -6,6 +6,7 @@ appended automatically to `[Unreleased]` by a commit hook (see
 [README.md](README.md)); versions are cut and tagged on `main` by hand.
 
 ## [Unreleased]
+- fix: raise the request budget and shuffle region order to stop systematic undercounting
 - fix: back off adaptively (doubling to 60s cap) instead of a flat request pace
 - fix: pace Overpass requests to stop self-inflicted cascading timeouts
 - fix: summit import no longer crashes on persistent 5xx/429 from Overpass

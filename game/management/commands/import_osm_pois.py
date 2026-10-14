@@ -13,8 +13,8 @@ OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 MAX_ATTEMPTS = 3
 RETRY_DELAY_SECONDS = 5
 REQUEST_HEADERS = {"User-Agent": "TerritoRide/0.1 (hobby project; not for production use)"}
-QUERY_TIMEOUT_SECONDS = 90
-HTTP_TIMEOUT_SECONDS = 120
+QUERY_TIMEOUT_SECONDS = 25
+HTTP_TIMEOUT_SECONDS = 40
 
 # A region that times out gets quartered and retried piece by piece.
 MAX_SPLIT_DEPTH = 6
@@ -50,6 +50,14 @@ def _parse_altitude(ele: str | None) -> int | None:
     try:
         return round(float(ele))
     except ValueError:
+        return None
+
+
+def _retry_after_seconds(response: requests.Response) -> float | None:
+    """Server-requested retry delay from a Retry-After header, if present and numeric."""
+    try:
+        return float(response.headers["Retry-After"])
+    except (KeyError, ValueError):
         return None
 
 
@@ -123,23 +131,30 @@ class Command(BaseCommand):
             return elements
 
     def _fetch_elements(self, query: str) -> list[dict[str, Any]]:
-        """POST to Overpass, retrying on server errors; raises _QueryTimedOut on a remark."""
+        """POST to Overpass; a persistent 5xx or a timeout remark both raise _QueryTimedOut."""
+        status_code = None
         for attempt in range(1, MAX_ATTEMPTS + 1):
             self._request_count += 1
-            response = requests.post(
-                OVERPASS_URL, data={"data": query}, headers=REQUEST_HEADERS,
-                timeout=HTTP_TIMEOUT_SECONDS,
-            )
+            try:
+                response = requests.post(
+                    OVERPASS_URL, data={"data": query}, headers=REQUEST_HEADERS,
+                    timeout=HTTP_TIMEOUT_SECONDS,
+                )
+            except requests.exceptions.Timeout:
+                raise _QueryTimedOut("client-side request timeout") from None
             if response.ok:
                 payload = response.json()
                 if "remark" in payload:
                     raise _QueryTimedOut(payload["remark"])
                 elements: list[dict[str, Any]] = payload["elements"]
                 return elements
-            if attempt == MAX_ATTEMPTS or response.status_code < 500:
+            status_code = response.status_code
+            if status_code < 500 and status_code != 429:
                 response.raise_for_status()
-            self.stdout.write(
-                f"Overpass returned {response.status_code}, retrying ({attempt}/{MAX_ATTEMPTS})..."
-            )
-            time.sleep(RETRY_DELAY_SECONDS)
-        return []
+            if attempt < MAX_ATTEMPTS:
+                delay = _retry_after_seconds(response) or RETRY_DELAY_SECONDS
+                self.stdout.write(
+                    f"Overpass returned {status_code}, retrying ({attempt}/{MAX_ATTEMPTS})..."
+                )
+                time.sleep(delay)
+        raise _QueryTimedOut(f"HTTP {status_code} after {MAX_ATTEMPTS} attempts")

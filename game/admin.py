@@ -1,12 +1,23 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.gis.admin import GISModelAdmin
 
+from .capture import recapture_all
 from .models import POI, Activity, TerritoryCell
+
+
+@admin.action(description="Recapture all routes (replay every activity's capture)")
+def recapture_all_action(modeladmin, request, queryset):  # type: ignore[no-untyped-def]
+    """Ignore the selection - this always replays every activity, e.g. after POIs are added."""
+    cells, pois = recapture_all()
+    modeladmin.message_user(
+        request, f"Recaptured {cells} cells and {pois} POIs.", level=messages.SUCCESS
+    )
 
 
 @admin.register(Activity)
 class ActivityAdmin(GISModelAdmin):  # type: ignore[type-arg]
     list_display = ("name", "user", "recorded_at")
+    actions = [recapture_all_action]
 
 
 @admin.register(TerritoryCell)
@@ -19,3 +30,4 @@ class TerritoryCellAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
 class POIAdmin(GISModelAdmin):  # type: ignore[type-arg]
     list_display = ("name", "poi_type", "altitude_m", "owner", "claimed_at")
     list_filter = ("poi_type", "owner")
+    actions = [recapture_all_action]

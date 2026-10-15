@@ -199,8 +199,12 @@
         paint: { "line-color": ["get", "color"], "line-width": 2 },
       });
 
-      loadIconAsImageData("{% static 'game/icons/pass.svg' %}").then(function (imageData) {
-        map.addImage("pass", imageData);
+      Promise.all([
+        loadIconAsImageData("{% static 'game/icons/pass.svg' %}"),
+        loadIconAsImageData("{% static 'game/icons/peak.svg' %}"),
+      ]).then(function (images) {
+        map.addImage("pass", images[0]);
+        map.addImage("peak", images[1]);
         map.addSource("pois", { type: "geojson", data: EMPTY_FC });
         map.addLayer({
           id: "pois-circle",
@@ -219,7 +223,7 @@
           type: "symbol",
           source: "pois",
           layout: {
-            "icon-image": "pass",
+            "icon-image": ["match", ["get", "poi_type"], "summit", "peak", "pass"],
             "icon-size": ["interpolate", ["linear"], ["zoom"], 6, 0.15, 10, 0.4, 14, 1],
             "icon-allow-overlap": true,
           },

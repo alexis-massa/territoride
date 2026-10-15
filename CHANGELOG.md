@@ -6,6 +6,7 @@ appended automatically to `[Unreleased]` by a commit hook (see
 [README.md](README.md)); versions are cut and tagged on `main` by hand.
 
 ## [Unreleased]
+- feat: give summits a distinct map icon from mountain passes
 - chore: ignore the app's log directory
 - feat: show scan progress during OSM POI extraction
 - feat: add an offline Geofabrik-extract pipeline for POIs, as an alternative to live Overpass queries

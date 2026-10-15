@@ -1,7 +1,7 @@
 from django.contrib import admin, messages
 from django.contrib.gis.admin import GISModelAdmin
 
-from .capture import recapture_all
+from .capture import recapture_all, release_activity
 from .models import POI, Activity, TerritoryCell
 
 
@@ -14,10 +14,21 @@ def recapture_all_action(modeladmin, request, queryset):  # type: ignore[no-unty
     )
 
 
+@admin.action(description="Release and delete selected activities")
+def release_and_delete_action(modeladmin, request, queryset):  # type: ignore[no-untyped-def]
+    """Properly release held cells/POIs before deleting, unlike the default delete action."""
+    count = queryset.count()
+    for activity in queryset:
+        release_activity(activity)
+    modeladmin.message_user(
+        request, f"Released and deleted {count} activities.", level=messages.SUCCESS
+    )
+
+
 @admin.register(Activity)
 class ActivityAdmin(GISModelAdmin):  # type: ignore[type-arg]
     list_display = ("name", "user", "recorded_at")
-    actions = [recapture_all_action]
+    actions = [recapture_all_action, release_and_delete_action]
 
 
 @admin.register(TerritoryCell)

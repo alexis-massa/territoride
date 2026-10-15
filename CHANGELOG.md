@@ -6,6 +6,7 @@ appended automatically to `[Unreleased]` by a commit hook (see
 [README.md](README.md)); versions are cut and tagged on `main` by hand.
 
 ## [Unreleased]
+- feat: add a release-and-delete admin action for activities, to avoid dangling ownership
 - feat: add a recapture-all admin action, for use after importing new POIs
 - feat: give summits a distinct map icon from mountain passes
 - chore: ignore the app's log directory

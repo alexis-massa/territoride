@@ -4,7 +4,10 @@ __pycache__/
 db.sqlite3
 staticfiles/
 media/
+logs/
 .osm_import_pending_*.json
+*.osm.pbf
+*.ndjson
 
 .env
 .mypy_cache/

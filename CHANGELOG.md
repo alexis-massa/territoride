@@ -6,6 +6,9 @@ appended automatically to `[Unreleased]` by a commit hook (see
 [README.md](README.md)); versions are cut and tagged on `main` by hand.
 
 ## [Unreleased]
+- chore: cut v0.6.0, backfill v0.3.1-v0.5.0 changelog sections
+
+## [0.6.0] - 2026-10-28
 - Feature: installable PWA for mobile home screens
 - feat: add a release-and-delete admin action for activities, to avoid dangling ownership
 - feat: add a recapture-all admin action, for use after importing new POIs
@@ -13,19 +16,27 @@ appended automatically to `[Unreleased]` by a commit hook (see
 - chore: ignore the app's log directory
 - feat: show scan progress during OSM POI extraction
 - feat: add an offline Geofabrik-extract pipeline for POIs, as an alternative to live Overpass queries
-- feat: add an offline Geofabrik-extract pipeline for POIs, as an alternative to live Overpass queries
 - fix: don't blindly query regions anymore, keep track
+
+## [0.5.0] - 2026-10-14
 - feat: stream summit import as each region fetches, so stopping early loses nothing
 - fix: raise the request budget and shuffle region order to stop systematic undercounting
 - fix: back off adaptively (doubling to 60s cap) instead of a flat request pace
 - fix: pace Overpass requests to stop self-inflicted cascading timeouts
+
+## [0.4.2] - 2026-10-14
 - fix: summit import no longer crashes on persistent 5xx/429 from Overpass
+
+## [0.4.1] - 2026-10-14
 - fix: summit import now splits regions that time out instead of silently returning nothing
-- fix: summit import now splits regions that time out instead of silently returning nothing
+
+## [0.4.0] - 2026-10-13
 - feat: import summits from OpenStreetMap, filtered by elevation/wikipedia/prominence
 - feat: support multiple POI types (mountain passes, summits) with per-type map filters
 - chore: remove the grid overlay, it was slow and added no visual value
 - fix: captured tiles no longer fade to near-invisible near expiry
+
+## [0.3.1] - 2026-10-12
 - fix: stop applying sport multiplier to mountain pass points
 - chore: cut v0.3.0, backfill missed v0.2.1/v0.2.2 changelog sections
 

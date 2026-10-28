@@ -11,6 +11,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.gis.geos import LineString, Polygon
 from django.http import HttpRequest, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import redirect, render
+from django.templatetags.static import static
 from django.views.decorators.http import require_POST
 
 from accounts.models import User
@@ -220,3 +221,41 @@ def import_activity_view(request: HttpRequest) -> HttpResponse:
     pois = capture_pois(activity)
     messages.success(request, f"Imported {activity.name!r}: captured {cells} cells, {pois} passes.")
     return redirect("map")
+
+
+def manifest_view(request: HttpRequest) -> JsonResponse:
+    """Web app manifest, built with static() so icon URLs survive hashed storage in prod."""
+    manifest = {
+        "name": "TerritoRide",
+        "short_name": "TerritoRide",
+        "description": "Turn your rides and hikes into conquered territory.",
+        "start_url": "/",
+        "scope": "/",
+        "display": "standalone",
+        "background_color": "#f4f5f7",
+        "theme_color": "#3b6fd6",
+        "icons": [
+            {"src": static("game/icons/icon-192.png"), "sizes": "192x192", "type": "image/png", "purpose": "any"},
+            {"src": static("game/icons/icon-512.png"), "sizes": "512x512", "type": "image/png", "purpose": "any"},
+            {
+                "src": static("game/icons/maskable-512.png"),
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "maskable",
+            },
+        ],
+    }
+    return JsonResponse(manifest, content_type="application/manifest+json")
+
+
+# Served from the root path (not /static/) so its default scope covers the whole app.
+_SERVICE_WORKER_JS = b"""\
+self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+self.addEventListener("fetch", (event) => event.respondWith(fetch(event.request)));
+"""
+
+
+def service_worker_view(request: HttpRequest) -> HttpResponse:
+    """Minimal pass-through service worker, just enough to make the app installable."""
+    return HttpResponse(_SERVICE_WORKER_JS, content_type="application/javascript")

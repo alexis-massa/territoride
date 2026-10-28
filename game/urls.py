@@ -4,6 +4,8 @@ from . import views
 
 urlpatterns = [
     path("", views.map_view, name="map"),
+    path("manifest.webmanifest", views.manifest_view, name="manifest"),
+    path("sw.js", views.service_worker_view, name="service_worker"),
     path("territory.geojson", views.territory_geojson_view, name="territory_geojson"),
     path("routes.geojson", views.routes_geojson_view, name="routes_geojson"),
     path("pois.geojson", views.pois_geojson_view, name="pois_geojson"),

@@ -72,7 +72,12 @@ def map_view(request: HttpRequest) -> HttpResponse:
     )
 
 
-def _territory_feature(cell: TerritoryCell) -> dict[str, Any]:
+def _all_usernames() -> list[str]:
+    """Every username, ordered by id - load once per request for player_color()."""
+    return list(User.objects.order_by("id").values_list("username", flat=True))
+
+
+def _territory_feature(cell: TerritoryCell, usernames: list[str]) -> dict[str, Any]:
     """Build one territory GeoJSON feature for a captured (owned) cell."""
     assert cell.owner is not None
     assert cell.captured_at is not None
@@ -81,7 +86,7 @@ def _territory_feature(cell: TerritoryCell) -> dict[str, Any]:
         "geometry": {"type": "Polygon", "coordinates": [cell_boundary(cell.cell_id)]},
         "properties": {
             "owner": cell.owner.username,
-            "color": player_color(cell.owner.username),
+            "color": player_color(cell.owner.username, usernames),
             "captured_at": cell.captured_at.isoformat(),
             "age_days": elapsed_days(cell.captured_at),
             "remaining": current_value(1.0, cell.captured_at),
@@ -92,7 +97,8 @@ def _territory_feature(cell: TerritoryCell) -> dict[str, Any]:
 def territory_geojson_view(request: HttpRequest) -> HttpResponse:
     """Captured territory cells, as GeoJSON."""
     cells = TerritoryCell.objects.exclude(owner=None).select_related("owner")
-    features = [_territory_feature(cell) for cell in cells]
+    usernames = _all_usernames()
+    features = [_territory_feature(cell, usernames) for cell in cells]
     return JsonResponse({"type": "FeatureCollection", "features": features})
 
 
@@ -100,7 +106,8 @@ def routes_geojson_view(request: HttpRequest) -> HttpResponse:
     """Tracks of activities that have captured at least one cell, as GeoJSON."""
     activities = Activity.objects.filter(
         captured_cells__isnull=False, track__isnull=False
-    ).distinct()
+    ).select_related("user").distinct()
+    usernames = _all_usernames()
     features = []
     for activity in activities:
         assert activity.track is not None
@@ -111,14 +118,14 @@ def routes_geojson_view(request: HttpRequest) -> HttpResponse:
                 "properties": {
                     "name": activity.name,
                     "owner": activity.user.username,
-                    "color": player_color(activity.user.username),
+                    "color": player_color(activity.user.username, usernames),
                 },
             }
         )
     return JsonResponse({"type": "FeatureCollection", "features": features})
 
 
-def _poi_feature(poi: POI) -> dict[str, Any]:
+def _poi_feature(poi: POI, usernames: list[str]) -> dict[str, Any]:
     """Build one POI GeoJSON feature."""
     return {
         "type": "Feature",
@@ -129,7 +136,7 @@ def _poi_feature(poi: POI) -> dict[str, Any]:
             "poi_type_label": poi.get_poi_type_display(),
             "altitude_m": poi.altitude_m,
             "owner": poi.owner.username if poi.owner else None,
-            "color": player_color(poi.owner.username) if poi.owner else None,
+            "color": player_color(poi.owner.username, usernames) if poi.owner else None,
             "captured_at": poi.claimed_at.isoformat() if poi.claimed_at else None,
             "age_days": elapsed_days(poi.claimed_at) if poi.claimed_at else None,
             "remaining": current_value(1.0, poi.claimed_at) if poi.claimed_at else None,
@@ -147,7 +154,8 @@ def pois_geojson_view(request: HttpRequest) -> HttpResponse:
     bbox = Polygon.from_bbox((min_lon, min_lat, max_lon, max_lat))
     bbox.srid = 4326
     pois = POI.objects.filter(location__within=bbox).select_related("owner")
-    features = [_poi_feature(poi) for poi in pois]
+    usernames = _all_usernames()
+    features = [_poi_feature(poi, usernames) for poi in pois]
     return JsonResponse({"type": "FeatureCollection", "features": features})
 
 

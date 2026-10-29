@@ -39,9 +39,13 @@ def _territory_group_value(
     return TERRITORY_CELL_VALUE * multiplier * cell_count
 
 
-def player_color(username: str) -> str:
-    """Deterministic display color for a player, unique up to len(PLAYER_COLORS) players."""
-    usernames = list(User.objects.order_by("id").values_list("username", flat=True))
+def player_color(username: str, usernames: list[str] | None = None) -> str:
+    """Deterministic display color for a player, unique up to len(PLAYER_COLORS) players.
+
+    Pass a preloaded usernames list to avoid a fresh query on every call in a loop.
+    """
+    if usernames is None:
+        usernames = list(User.objects.order_by("id").values_list("username", flat=True))
     index = usernames.index(username) if username in usernames else zlib.crc32(username.encode())
     return PLAYER_COLORS[index % len(PLAYER_COLORS)]
 

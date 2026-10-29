@@ -284,15 +284,20 @@
       });
 
       function loadTerritory() {
-        loadSource("territory", "{% url 'territory_geojson' %}");
+        loadSource("territory", "{% url 'territory_geojson' %}?bbox=" + encodeURIComponent(currentBbox()));
       }
 
       function loadRoutes() {
-        loadSource("routes", "{% url 'routes_geojson' %}");
+        loadSource("routes", "{% url 'routes_geojson' %}?bbox=" + encodeURIComponent(currentBbox()));
       }
 
       if (document.getElementById("toggle-territory").checked) loadTerritory();
       if (document.getElementById("toggle-routes").checked) loadRoutes();
+
+      map.on("moveend", function () {
+        if (document.getElementById("toggle-territory").checked) loadTerritory();
+        if (document.getElementById("toggle-routes").checked) loadRoutes();
+      });
 
       document.getElementById("toggle-territory").addEventListener("change", function (e) {
         if (e.target.checked) {

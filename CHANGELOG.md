@@ -6,6 +6,7 @@ appended automatically to `[Unreleased]` by a commit hook (see
 [README.md](README.md)); versions are cut and tagged on `main` by hand.
 
 ## [Unreleased]
+- perf: reload territory/routes layers with the viewport bbox on pan/zoom
 - perf: filter territory and routes geojson to the viewport bbox like POIs
 - feat: store each territory cell's centroid for spatial bbox queries
 - perf: build point/line geometries directly instead of round-tripping through GeoJSON strings

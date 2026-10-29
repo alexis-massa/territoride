@@ -3,7 +3,7 @@ from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.measure import D
 from django.db.models import Q
 
-from .grid import RESOLUTION, cells_in_loop
+from .grid import RESOLUTION, cell_centroid, cells_in_loop
 from .models import POI, Activity, TerritoryCell
 
 # Strava trims ~200m at start/end, so a loop can show up to ~400m "open".
@@ -42,7 +42,11 @@ def _claim_cells(activity: Activity, cell_ids: set[str]) -> int:
         TerritoryCell.objects.filter(cell_id__in=cell_ids).values_list("cell_id", flat=True)
     )
     TerritoryCell.objects.bulk_create(
-        [TerritoryCell(cell_id=cell_id) for cell_id in cell_ids - existing], ignore_conflicts=True
+        [
+            TerritoryCell(cell_id=cell_id, centroid=cell_centroid(cell_id))
+            for cell_id in cell_ids - existing
+        ],
+        ignore_conflicts=True,
     )
     return (
         TerritoryCell.objects.filter(cell_id__in=cell_ids)

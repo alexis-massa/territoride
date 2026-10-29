@@ -1,4 +1,5 @@
 import h3
+from django.contrib.gis.geos import Point
 
 RESOLUTION = 8
 
@@ -7,6 +8,12 @@ def cell_boundary(cell: str) -> list[tuple[float, float]]:
     """Closed (lng, lat) ring for a cell, ready for GeoJSON."""
     ring = [(lng, lat) for lat, lng in h3.cell_to_boundary(cell)]
     return [*ring, ring[0]]
+
+
+def cell_centroid(cell: str) -> Point:
+    """Center point of a cell, for spatial (bbox) queries."""
+    lat, lng = h3.cell_to_latlng(cell)
+    return Point(lng, lat, srid=4326)
 
 
 def cells_in_loop(points: list[tuple[float, float]]) -> set[str]:

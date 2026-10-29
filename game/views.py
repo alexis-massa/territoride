@@ -94,18 +94,38 @@ def _territory_feature(cell: TerritoryCell, usernames: list[str]) -> dict[str, A
 
 
 def territory_geojson_view(request: HttpRequest) -> HttpResponse:
-    """Captured territory cells, as GeoJSON."""
-    cells = TerritoryCell.objects.exclude(owner=None).select_related("owner")
+    """Captured territory cells covering the viewport's "bbox" query param, as GeoJSON."""
+    try:
+        min_lon, min_lat, max_lon, max_lat = _bbox_from_request(request)
+    except ValueError:
+        return HttpResponseBadRequest("bbox must be min_lon,min_lat,max_lon,max_lat")
+
+    bbox = Polygon.from_bbox((min_lon, min_lat, max_lon, max_lat))
+    bbox.srid = 4326
+    cells = (
+        TerritoryCell.objects.exclude(owner=None)
+        .filter(centroid__within=bbox)
+        .select_related("owner")
+    )
     usernames = _all_usernames()
     features = [_territory_feature(cell, usernames) for cell in cells]
     return JsonResponse({"type": "FeatureCollection", "features": features})
 
 
 def routes_geojson_view(request: HttpRequest) -> HttpResponse:
-    """Tracks of activities that have captured at least one cell, as GeoJSON."""
-    activities = Activity.objects.filter(
-        captured_cells__isnull=False, track__isnull=False
-    ).select_related("user").distinct()
+    """Tracks of activities that captured a cell and cross the viewport's "bbox", as GeoJSON."""
+    try:
+        min_lon, min_lat, max_lon, max_lat = _bbox_from_request(request)
+    except ValueError:
+        return HttpResponseBadRequest("bbox must be min_lon,min_lat,max_lon,max_lat")
+
+    bbox = Polygon.from_bbox((min_lon, min_lat, max_lon, max_lat))
+    bbox.srid = 4326
+    activities = (
+        Activity.objects.filter(captured_cells__isnull=False, track__intersects=bbox)
+        .select_related("user")
+        .distinct()
+    )
     usernames = _all_usernames()
     features = []
     for activity in activities:

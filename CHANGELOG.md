@@ -6,6 +6,7 @@ appended automatically to `[Unreleased]` by a commit hook (see
 [README.md](README.md)); versions are cut and tagged on `main` by hand.
 
 ## [Unreleased]
+- perf: build point/line geometries directly instead of round-tripping through GeoJSON strings
 - perf: load usernames once per geojson request instead of per feature
 - chore: cut v0.6.0, backfill v0.3.1-v0.5.0 changelog sections
 

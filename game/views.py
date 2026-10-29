@@ -1,4 +1,3 @@
-import json
 import re
 from typing import Any
 
@@ -114,7 +113,7 @@ def routes_geojson_view(request: HttpRequest) -> HttpResponse:
         features.append(
             {
                 "type": "Feature",
-                "geometry": json.loads(activity.track.geojson),
+                "geometry": {"type": "LineString", "coordinates": list(activity.track.coords)},
                 "properties": {
                     "name": activity.name,
                     "owner": activity.user.username,
@@ -129,7 +128,7 @@ def _poi_feature(poi: POI, usernames: list[str]) -> dict[str, Any]:
     """Build one POI GeoJSON feature."""
     return {
         "type": "Feature",
-        "geometry": json.loads(poi.location.geojson),
+        "geometry": {"type": "Point", "coordinates": [poi.location.x, poi.location.y]},
         "properties": {
             "name": poi.name,
             "poi_type": poi.poi_type,

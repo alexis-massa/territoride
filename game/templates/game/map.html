@@ -205,7 +205,36 @@
       ]).then(function (images) {
         map.addImage("pass", images[0]);
         map.addImage("peak", images[1]);
-        map.addSource("pois", { type: "geojson", data: EMPTY_FC });
+        map.addSource("pois", {
+          type: "geojson",
+          data: EMPTY_FC,
+          cluster: true,
+          clusterMaxZoom: 13,
+          clusterRadius: 50,
+        });
+        map.addLayer({
+          id: "pois-cluster-circle",
+          type: "circle",
+          source: "pois",
+          filter: ["has", "point_count"],
+          paint: {
+            "circle-radius": ["interpolate", ["linear"], ["get", "point_count"], 1, 10, 500, 24],
+            "circle-color": "#3b6fd6",
+            "circle-stroke-width": 2,
+            "circle-stroke-color": "#ffffff",
+          },
+        });
+        map.addLayer({
+          id: "pois-cluster-count",
+          type: "symbol",
+          source: "pois",
+          filter: ["has", "point_count"],
+          layout: {
+            "text-field": ["get", "point_count_abbreviated"],
+            "text-size": 12,
+          },
+          paint: { "text-color": "#ffffff" },
+        });
         map.addLayer({
           id: "pois-circle",
           type: "circle",
@@ -227,6 +256,22 @@
             "icon-size": ["interpolate", ["linear"], ["zoom"], 6, 0.15, 10, 0.4, 14, 1],
             "icon-allow-overlap": true,
           },
+        });
+
+        // Cluster counts are computed from every POI in the source, so clicking
+        // a cluster always zooms toward it regardless of the type filter below.
+        map.on("click", "pois-cluster-circle", function (e) {
+          var cluster = e.features[0];
+          map.getSource("pois").getClusterExpansionZoom(cluster.properties.cluster_id, function (err, zoom) {
+            if (err) return;
+            map.easeTo({ center: cluster.geometry.coordinates, zoom: zoom });
+          });
+        });
+        map.on("mouseenter", "pois-cluster-circle", function () {
+          map.getCanvas().style.cursor = "pointer";
+        });
+        map.on("mouseleave", "pois-cluster-circle", function () {
+          map.getCanvas().style.cursor = "";
         });
 
         var poiPopup = new maplibregl.Popup({
@@ -267,9 +312,10 @@
           var enabled = Array.from(document.querySelectorAll(".poi-type-toggle"))
             .filter(function (el) { return el.checked; })
             .map(function (el) { return el.dataset.poiType; });
-          var filter = enabled.length
+          var typeFilter = enabled.length
             ? ["in", ["get", "poi_type"], ["literal", enabled]]
             : ["==", ["get", "poi_type"], ""];
+          var filter = ["all", ["!", ["has", "point_count"]], typeFilter];
           map.setFilter("pois-circle", filter);
           map.setFilter("pois-icon", filter);
         }

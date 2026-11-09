@@ -26,7 +26,7 @@ def _bbox(min_lon: float, min_lat: float, max_lon: float, max_lat: float) -> dic
     return {"bbox": f"{min_lon},{min_lat},{max_lon},{max_lat}"}
 
 
-class GeojsonViewTests(TestCase):
+class GeojsonFixture(TestCase):
     alice: User
     bob: User
     activity: Activity
@@ -67,6 +67,9 @@ class GeojsonViewTests(TestCase):
         features: list[dict[str, Any]] = response.json()["features"]
         return features
 
+
+
+class GeojsonViewTests(GeojsonFixture):
     def test_pois_filtered_by_bbox(self) -> None:
         features = self._features("pois_geojson", min_lon=5, min_lat=45, max_lon=7, max_lat=46)
         self.assertEqual([f["properties"]["name"] for f in features], ["Col near"])
@@ -146,6 +149,61 @@ class GeojsonViewTests(TestCase):
         url, params = reverse("territory_geojson"), _bbox(-180, -90, 180, 90)
         with self.assertNumQueries(2):  # cells (+owner join), usernames
             self.client.get(url, params)
+
+
+class MineOnlyTests(GeojsonFixture):
+    """The "?mine=1" view: only the logged-in player's own data."""
+
+    WORLD = {"min_lon": -180, "min_lat": -90, "max_lon": 180, "max_lat": 90}
+
+    def _mine(self, name: str) -> list[dict[str, Any]]:
+        response = self.client.get(reverse(name), {**_bbox(-180, -90, 180, 90), "mine": "1"})
+        self.assertEqual(response.status_code, 200)
+        features: list[dict[str, Any]] = response.json()["features"]
+        return features
+
+    def test_requires_login(self) -> None:
+        for name in ("pois_geojson", "territory_geojson", "routes_geojson"):
+            response = self.client.get(reverse(name), {**_bbox(-180, -90, 180, 90), "mine": "1"})
+            self.assertEqual(response.status_code, 403, name)
+
+    def test_territory_only_includes_own_cells_with_age(self) -> None:
+        self.client.force_login(self.bob)
+        features = self._mine("territory_geojson")
+        self.assertEqual([f["properties"]["owner"] for f in features], ["bob"])
+        self.assertIn("age_days", features[0]["properties"])
+
+    def test_routes_include_own_rides_that_hold_no_cells(self) -> None:
+        Activity.objects.create(
+            user=self.bob,
+            name="Retaken ride",
+            track=LineString(TRACK_COORDS, srid=4326),
+            recorded_at=NOW,
+        )
+        self.client.force_login(self.bob)
+        features = self._mine("routes_geojson")
+        self.assertEqual([f["properties"]["name"] for f in features], ["Retaken ride"])
+        self.assertIn("age_days", features[0]["properties"])
+
+    def test_routes_exclude_other_players(self) -> None:
+        self.client.force_login(self.bob)
+        names = [f["properties"]["name"] for f in self._mine("routes_geojson")]
+        self.assertNotIn("Morning ride", names)
+
+    def test_pois_held_by_others_show_as_unclaimed(self) -> None:
+        self.client.force_login(self.bob)
+        by_name = {f["properties"]["name"]: f["properties"] for f in self._mine("pois_geojson")}
+        self.assertEqual(set(by_name), {"Col near", "Col far"})
+        self.assertNotIn("owner", by_name["Col near"])  # alice's, hidden from bob
+        self.client.force_login(self.alice)
+        by_name = {f["properties"]["name"]: f["properties"] for f in self._mine("pois_geojson")}
+        self.assertEqual(by_name["Col near"]["owner"], "alice")
+        self.assertNotIn("owner", by_name["Col far"])
+
+    def test_default_view_still_shows_everyone(self) -> None:
+        self.client.force_login(self.bob)
+        features = self._features("territory_geojson", **self.WORLD)
+        self.assertEqual(len(features), 2)
 
 
 class TerritoryBboxTests(TestCase):

@@ -9,6 +9,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.gis.db.models import Extent, LineStringField
 from django.contrib.gis.geos import LineString, Polygon
+from django.core.exceptions import PermissionDenied
 from django.db.models import Exists, F, Func, OuterRef, Value
 from django.http import HttpRequest, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import redirect, render
@@ -33,6 +34,9 @@ from .scoring import (
 BBOX_PARAM = "bbox"
 BBOX_ERROR = "bbox must be min_lon,min_lat,max_lon,max_lat"
 
+# "?mine=1" restricts a GeoJSON layer to the logged-in player's own captures and rides.
+MINE_PARAM = "mine"
+
 # Route simplification tolerance, as a fraction of the viewport width: sub-pixel detail
 # is dropped server-side instead of being shipped to the browser and then discarded.
 ROUTE_SIMPLIFY_DIVISOR = 1500
@@ -46,6 +50,20 @@ def _bbox_from_request(request: HttpRequest) -> tuple[float, float, float, float
     if not all(math.isfinite(v) for v in (min_lon, min_lat, max_lon, max_lat)):
         raise ValueError("bbox values must be finite")
     return min_lon, min_lat, max_lon, max_lat
+
+
+def _mine_user(request: HttpRequest) -> User | None:
+    """The player a "mine" request is scoped to, or None for the shared world view.
+
+    Raises PermissionDenied for "mine" without a login, rather than silently
+    serving everyone's data to someone who asked for their own.
+    """
+    if request.GET.get(MINE_PARAM) != "1":
+        return None
+    if not request.user.is_authenticated:
+        raise PermissionDenied("Log in to see only your own activity")
+    assert isinstance(request.user, User)
+    return request.user
 
 
 def _bbox_polygon(bbox: tuple[float, float, float, float]) -> Polygon:
@@ -121,6 +139,8 @@ def territory_geojson_view(request: HttpRequest) -> HttpResponse:
         .filter(centroid__within=bbox)
         .select_related("owner")
     )
+    if mine := _mine_user(request):
+        cells = cells.filter(owner=mine)
     colors = player_colors()
     features = [_territory_feature(cell, colors) for cell in cells]
     return JsonResponse({"type": "FeatureCollection", "features": features})
@@ -135,12 +155,17 @@ def routes_geojson_view(request: HttpRequest) -> HttpResponse:
         return HttpResponseBadRequest(BBOX_ERROR)
 
     tolerance = (bounds[2] - bounds[0]) / ROUTE_SIMPLIFY_DIVISOR
-    activities = (
-        Activity.objects.filter(
-            Exists(TerritoryCell.objects.filter(captured_by=OuterRef("pk"))),
-            track__intersects=_bbox_polygon(bounds),
+    activities = Activity.objects.filter(track__intersects=_bbox_polygon(bounds))
+    if mine := _mine_user(request):
+        # Every ride of the player's, even ones whose tiles were since retaken: the point
+        # is seeing where they have been, not what they still hold.
+        activities = activities.filter(user=mine)
+    else:
+        activities = activities.filter(
+            Exists(TerritoryCell.objects.filter(captured_by=OuterRef("pk")))
         )
-        .annotate(
+    activities = (
+        activities.annotate(
             simplified=Func(
                 F("track"),
                 Value(tolerance),
@@ -149,7 +174,7 @@ def routes_geojson_view(request: HttpRequest) -> HttpResponse:
             ),
             owner_name=F("user__username"),
         )
-        .only("name")
+        .only("name", "recorded_at")
     )
     colors = player_colors()
     features = [
@@ -160,6 +185,7 @@ def routes_geojson_view(request: HttpRequest) -> HttpResponse:
                 "name": activity.name,
                 "owner": activity.owner_name,
                 "color": colors[activity.owner_name],
+                "age_days": elapsed_days(activity.recorded_at),
             },
         }
         for activity in activities
@@ -167,15 +193,20 @@ def routes_geojson_view(request: HttpRequest) -> HttpResponse:
     return JsonResponse({"type": "FeatureCollection", "features": features})
 
 
-def _poi_feature(poi: POI, colors: dict[str, str]) -> dict[str, Any]:
-    """Build one POI GeoJSON feature; claim fields are only present on claimed POIs."""
+def _poi_feature(
+    poi: POI, colors: dict[str, str], only_owner: User | None = None
+) -> dict[str, Any]:
+    """Build one POI GeoJSON feature; claim fields are only present on claimed POIs.
+
+    With only_owner, POIs held by anyone else are shown as unclaimed.
+    """
     properties: dict[str, Any] = {
         "name": poi.name,
         "poi_type": poi.poi_type,
         "poi_type_label": poi.get_poi_type_display(),
         "altitude_m": poi.altitude_m,
     }
-    if poi.owner and poi.claimed_at:
+    if poi.owner and poi.claimed_at and (only_owner is None or poi.owner_id == only_owner.pk):
         properties |= {
             "owner": poi.owner.username,
             "color": colors[poi.owner.username],
@@ -204,7 +235,8 @@ def pois_geojson_view(request: HttpRequest) -> HttpResponse:
         .only("name", "poi_type", "altitude_m", "location", "claimed_at", "owner__username")
     )
     colors = player_colors()
-    features = [_poi_feature(poi, colors) for poi in pois]
+    mine = _mine_user(request)
+    features = [_poi_feature(poi, colors, mine) for poi in pois]
     return JsonResponse({"type": "FeatureCollection", "features": features})
 
 

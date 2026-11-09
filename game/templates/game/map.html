@@ -160,6 +160,48 @@
       ];
     }
 
+    // "Only my activity": the server drops other players, and everything mine is coloured
+    // by how long ago it was visited instead of by player.
+    function mineOnly() {
+      var el = document.getElementById("toggle-mine");
+      return !!el && el.checked;
+    }
+
+    var RECENCY_COLOR = [
+      "interpolate", ["linear"], ["get", "age_days"],
+      0, "#2ecc71",
+      DECAY_THRESHOLD_DAYS * 0.33, "#f1c40f",
+      DECAY_THRESHOLD_DAYS * 0.66, "#e67e22",
+      DECAY_THRESHOLD_DAYS, "#e74c3c",
+    ];
+    var OWNER_COLOR = ["get", "color"];
+    var UNCLAIMED_BLACK = ["==", ["get", "owner"], null];
+
+    function applyMineStyle() {
+      var mine = mineOnly();
+      var color = mine ? RECENCY_COLOR : OWNER_COLOR;
+      var legend = document.getElementById("recency-legend");
+      if (legend) legend.hidden = !mine;
+      if (map.getLayer("territory-fill")) {
+        map.setPaintProperty("territory-fill", "fill-color", color);
+        // Hue already carries the age, so keep the fill equally strong
+        map.setPaintProperty(
+          "territory-fill",
+          "fill-opacity",
+          mine ? 0.55 : ["interpolate", ["linear"], ["get", "remaining"], 0, 0.25, 1, 0.55]
+        );
+      }
+      if (map.getLayer("routes-line")) map.setPaintProperty("routes-line", "line-color", color);
+      if (map.getLayer("pois-circle")) {
+        map.setPaintProperty("pois-circle", "circle-color", ["case", UNCLAIMED_BLACK, "#000000", color]);
+        map.setPaintProperty(
+          "pois-circle",
+          "circle-opacity",
+          mine ? 1 : ["case", UNCLAIMED_BLACK, 1, ["get", "remaining"]]
+        );
+      }
+    }
+
     // Per-source state: the in-flight request (aborted when superseded, so a slow
     // old response can't overwrite a newer one) and the area/zoom last loaded.
     var sourceState = {};
@@ -186,7 +228,8 @@
       var controller = (state.controller = new AbortController());
       var bbox = viewBounds(BBOX_MARGIN);
       var zoom = map.getZoom();
-      fetch(url + "?bbox=" + encodeURIComponent(bbox.join(",")), { signal: controller.signal })
+      var query = "?bbox=" + encodeURIComponent(bbox.join(",")) + (mineOnly() ? "&mine=1" : "");
+      fetch(url + query, { signal: controller.signal })
         .then(function (resp) {
           return resp.json();
         })
@@ -250,6 +293,7 @@
         source: "routes",
         paint: { "line-color": ["get", "color"], "line-width": 2 },
       });
+      applyMineStyle();
 
       Promise.all([
         loadIconAsImageData("{% static 'game/icons/pass.svg' %}"),
@@ -313,6 +357,8 @@
           },
         });
 
+        applyMineStyle();
+
         map.on("click", "pois-cluster-circle", function (e) {
           var cluster = e.features[0];
           map.getSource("pois").getClusterExpansionZoom(cluster.properties.cluster_id, function (err, zoom) {
@@ -373,8 +419,9 @@
           });
         }
 
-        function loadPOIs() {
+        function loadPOIs(force) {
           loadSource("pois", "{% url 'pois_geojson' %}", {
+            force: force === true,
             onData: function (data) {
               allPois = data;
               applyPoiTypeFilter();
@@ -386,8 +433,13 @@
           el.addEventListener("change", applyPoiTypeFilter);
         });
 
-        map.on("moveend", loadPOIs);
+        map.on("moveend", function () { loadPOIs(); });
         loadPOIs();
+
+        var mineToggle = document.getElementById("toggle-mine");
+        if (mineToggle) {
+          mineToggle.addEventListener("change", function () { loadPOIs(true); });
+        }
       });
 
       function loadTerritory(force) {
@@ -405,6 +457,15 @@
         if (document.getElementById("toggle-territory").checked) loadTerritory();
         if (document.getElementById("toggle-routes").checked) loadRoutes();
       });
+
+      var mineToggle = document.getElementById("toggle-mine");
+      if (mineToggle) {
+        mineToggle.addEventListener("change", function () {
+          applyMineStyle();
+          if (document.getElementById("toggle-territory").checked) loadTerritory(true);
+          if (document.getElementById("toggle-routes").checked) loadRoutes(true);
+        });
+      }
 
       document.getElementById("toggle-territory").addEventListener("change", function (e) {
         if (e.target.checked) {

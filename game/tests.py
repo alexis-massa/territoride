@@ -1,16 +1,18 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from importlib import import_module
 from typing import Any
 
 import h3
+from django.apps import apps as django_apps
 from django.contrib.gis.geos import LineString, Point
 from django.test import TestCase
 from django.urls import reverse
 
 from accounts.models import User
 
-from .capture import capture_territory
+from .capture import capture_territory, release_activity
 from .grid import cell_centroid
-from .models import POI, Activity, TerritoryCell
+from .models import POI, Activity, CellVisit, TerritoryCell
 from .scoring import PLAYER_COLORS, player_color, player_colors
 from .views import _user_territory_bbox
 
@@ -167,11 +169,27 @@ class MineOnlyTests(GeojsonFixture):
             response = self.client.get(reverse(name), {**_bbox(-180, -90, 180, 90), "mine": "1"})
             self.assertEqual(response.status_code, 403, name)
 
-    def test_territory_only_includes_own_cells_with_age(self) -> None:
+    def _visit(self, user: User, cell: str, at: datetime = NOW) -> None:
+        ride = Activity.objects.create(user=user, name="Ride", recorded_at=at)
+        CellVisit.objects.create(
+            user=user, cell_id=cell, centroid=cell_centroid(cell), activity=ride, visited_at=at
+        )
+
+    def test_territory_shows_own_visits_including_tiles_since_lost(self) -> None:
+        self._visit(self.bob, self.near)  # alice holds this one now
+        self._visit(self.bob, self.far)
+        self._visit(self.alice, self.near)
         self.client.force_login(self.bob)
         features = self._mine("territory_geojson")
-        self.assertEqual([f["properties"]["owner"] for f in features], ["bob"])
+        self.assertEqual(len(features), 2)
+        self.assertEqual({f["properties"]["owner"] for f in features}, {"bob"})
         self.assertIn("age_days", features[0]["properties"])
+        self.client.force_login(self.alice)
+        self.assertEqual(len(self._mine("territory_geojson")), 1)
+
+    def test_territory_ignores_held_cells_never_visited(self) -> None:
+        self.client.force_login(self.bob)  # bob holds `far` but has no recorded visit
+        self.assertEqual(self._mine("territory_geojson"), [])
 
     def test_routes_include_own_rides_that_hold_no_cells(self) -> None:
         Activity.objects.create(
@@ -204,6 +222,75 @@ class MineOnlyTests(GeojsonFixture):
         self.client.force_login(self.bob)
         features = self._features("territory_geojson", **self.WORLD)
         self.assertEqual(len(features), 2)
+
+
+class CellVisitTests(TestCase):
+    alice: User
+    bob: User
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        cls.alice = User.objects.create_user("alice", password="x")
+        cls.bob = User.objects.create_user("bob", password="x")
+
+    def _ride(self, user: User, days: int) -> Activity:
+        activity = Activity.objects.create(
+            user=user,
+            name=f"{user.username} day {days}",
+            track=LineString(TRACK_COORDS, srid=4326),
+            recorded_at=NOW + timedelta(days=days),
+        )
+        capture_territory(activity)
+        return activity
+
+    def _visits(self, user: User) -> dict[str, datetime]:
+        return dict(CellVisit.objects.filter(user=user).values_list("cell_id", "visited_at"))
+
+    def test_capture_records_a_visit_per_cell(self) -> None:
+        self._ride(self.alice, 0)
+        held = set(TerritoryCell.objects.values_list("cell_id", flat=True))
+        self.assertEqual(set(self._visits(self.alice)), held)
+        self.assertIn(ANNECY_CELL, self._visits(self.alice))
+
+    def test_visit_survives_losing_the_tile(self) -> None:
+        self._ride(self.alice, 0)
+        self._ride(self.bob, 1)
+        self.assertEqual(TerritoryCell.objects.get(cell_id=ANNECY_CELL).owner, self.bob)
+        self.assertIn(ANNECY_CELL, self._visits(self.alice))
+        self.assertIn(ANNECY_CELL, self._visits(self.bob))
+
+    def test_newer_ride_refreshes_the_visit(self) -> None:
+        self._ride(self.alice, 0)
+        self._ride(self.alice, 5)
+        self.assertEqual(self._visits(self.alice)[ANNECY_CELL], NOW + timedelta(days=5))
+        self.assertEqual(CellVisit.objects.filter(user=self.alice).count(),
+            len(self._visits(self.alice)),
+        )
+
+    def test_late_synced_older_ride_does_not_replace_a_newer_visit(self) -> None:
+        self._ride(self.alice, 5)
+        self._ride(self.alice, 0)
+        self.assertEqual(self._visits(self.alice)[ANNECY_CELL], NOW + timedelta(days=5))
+
+    def test_deleting_a_ride_falls_back_to_the_previous_visit(self) -> None:
+        self._ride(self.alice, 0)
+        newest = self._ride(self.alice, 5)
+        release_activity(newest)
+        self.assertEqual(self._visits(self.alice)[ANNECY_CELL], NOW)
+
+    def test_backfill_rebuilds_visits_from_existing_activities(self) -> None:
+        self._ride(self.alice, 0)
+        self._ride(self.alice, 5)
+        self._ride(self.bob, 2)
+        expected = {u: self._visits(u) for u in (self.alice, self.bob)}
+        CellVisit.objects.all().delete()
+        backfill = import_module("game.migrations.0011_cellvisit_backfill")
+        backfill.backfill_visits(django_apps, None)
+        self.assertEqual({u: self._visits(u) for u in (self.alice, self.bob)}, expected)
+
+    def test_deleting_the_only_ride_drops_its_visits(self) -> None:
+        release_activity(self._ride(self.alice, 0))
+        self.assertFalse(CellVisit.objects.exists())
 
 
 class TerritoryBboxTests(TestCase):

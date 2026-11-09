@@ -79,7 +79,8 @@
         props.age_days +
         "/" +
         DECAY_THRESHOLD_DAYS +
-        " days · captured " +
+        " days · " +
+        (mineOnly() ? "last visited " : "captured ") +
         new Date(props.captured_at).toLocaleDateString()
       );
     }

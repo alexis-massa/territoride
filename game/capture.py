@@ -4,7 +4,7 @@ from django.contrib.gis.measure import D
 from django.db.models import Q
 
 from .grid import RESOLUTION, cell_centroid, cells_in_loop
-from .models import POI, Activity, TerritoryCell
+from .models import POI, Activity, CellVisit, TerritoryCell
 
 # Strava trims ~200m at start/end, so a loop can show up to ~400m "open".
 LOOP_CLOSE_TOLERANCE_M = 500
@@ -31,6 +31,32 @@ def captured_cells(points: list[tuple[float, float]]) -> set[str]:
     return cells
 
 
+def _record_visits(activity: Activity, cell_ids: set[str]) -> None:
+    """Remember the player's latest visit to each cell, whoever ends up holding it.
+
+    Like claiming, keyed on recording time: a late-synced older ride never
+    replaces a more recent visit.
+    """
+    visits = CellVisit.objects.filter(user=activity.user, cell_id__in=cell_ids)
+    existing = set(visits.values_list("cell_id", flat=True))
+    CellVisit.objects.bulk_create(
+        [
+            CellVisit(
+                user=activity.user,
+                cell_id=cell_id,
+                centroid=cell_centroid(cell_id),
+                activity=activity,
+                visited_at=activity.recorded_at,
+            )
+            for cell_id in cell_ids - existing
+        ],
+        ignore_conflicts=True,
+    )
+    visits.filter(visited_at__lt=activity.recorded_at).update(
+        activity=activity, visited_at=activity.recorded_at
+    )
+
+
 def _claim_cells(activity: Activity, cell_ids: set[str]) -> int:
     """Claim cells for an activity, unless already held by a more recent capture.
 
@@ -38,6 +64,7 @@ def _claim_cells(activity: Activity, cell_ids: set[str]) -> int:
     activity synced late must not steal a cell someone already holds from
     a more recent ride.
     """
+    _record_visits(activity, cell_ids)
     existing = set(
         TerritoryCell.objects.filter(cell_id__in=cell_ids).values_list("cell_id", flat=True)
     )

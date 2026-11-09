@@ -1,5 +1,6 @@
 import math
 import re
+from datetime import datetime
 from typing import Any
 
 import gpxpy
@@ -22,12 +23,13 @@ from accounts.models import User
 from .capture import LOOP_CLOSE_TOLERANCE_M, POI_CAPTURE_RADIUS_M, capture_pois, capture_territory
 from .decay import DECAY_THRESHOLD_DAYS, current_value, elapsed_days
 from .grid import cell_boundary
-from .models import POI, Activity, TerritoryCell
+from .models import POI, Activity, CellVisit, TerritoryCell
 from .scoring import (
     DEFAULT_SPORT_MULTIPLIER,
     SPORT_MULTIPLIERS,
     TERRITORY_CELL_VALUE,
     leaderboard,
+    player_color,
     player_colors,
 )
 
@@ -109,21 +111,28 @@ def map_view(request: HttpRequest) -> HttpResponse:
     )
 
 
+def _cell_feature(cell_id: str, username: str, color: str, at: datetime) -> dict[str, Any]:
+    """Build one territory GeoJSON feature; "at" is when the cell was captured or visited."""
+    return {
+        "type": "Feature",
+        "geometry": {"type": "Polygon", "coordinates": [cell_boundary(cell_id)]},
+        "properties": {
+            "owner": username,
+            "color": color,
+            "captured_at": at.isoformat(),
+            "age_days": elapsed_days(at),
+            "remaining": current_value(1.0, at),
+        },
+    }
+
+
 def _territory_feature(cell: TerritoryCell, colors: dict[str, str]) -> dict[str, Any]:
     """Build one territory GeoJSON feature for a captured (owned) cell."""
     assert cell.owner is not None
     assert cell.captured_at is not None
-    return {
-        "type": "Feature",
-        "geometry": {"type": "Polygon", "coordinates": [cell_boundary(cell.cell_id)]},
-        "properties": {
-            "owner": cell.owner.username,
-            "color": colors[cell.owner.username],
-            "captured_at": cell.captured_at.isoformat(),
-            "age_days": elapsed_days(cell.captured_at),
-            "remaining": current_value(1.0, cell.captured_at),
-        },
-    }
+    return _cell_feature(
+        cell.cell_id, cell.owner.username, colors[cell.owner.username], cell.captured_at
+    )
 
 
 @gzip_page
@@ -134,13 +143,21 @@ def territory_geojson_view(request: HttpRequest) -> HttpResponse:
     except ValueError:
         return HttpResponseBadRequest(BBOX_ERROR)
 
+    if mine := _mine_user(request):
+        # Every cell the player rode through recently, including ones since taken from them.
+        color = player_color(mine.username)
+        visits = CellVisit.objects.filter(user=mine, centroid__within=bbox)
+        features = [
+            _cell_feature(v.cell_id, mine.username, color, v.visited_at)
+            for v in visits.only("cell_id", "visited_at")
+        ]
+        return JsonResponse({"type": "FeatureCollection", "features": features})
+
     cells = (
         TerritoryCell.objects.exclude(owner=None)
         .filter(centroid__within=bbox)
         .select_related("owner")
     )
-    if mine := _mine_user(request):
-        cells = cells.filter(owner=mine)
     colors = player_colors()
     features = [_territory_feature(cell, colors) for cell in cells]
     return JsonResponse({"type": "FeatureCollection", "features": features})

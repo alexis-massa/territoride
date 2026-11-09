@@ -6,18 +6,18 @@ appended automatically to `[Unreleased]` by a commit hook (see
 [README.md](README.md)); versions are cut and tagged on `main` by hand.
 
 ## [Unreleased]
+
+## [0.7.0] - 2026-11-09
+- feat: "only my activity" map mode, colouring own tiles, rides and passes by recency
 - feat: remember each player's latest visit per tile so 'only my activity' shows tiles since lost
-- feat: 'only my activity' map mode, colouring own tiles, rides and passes by recency
-- test: cover geojson bbox views, centroids, and player colors
-- perf: abort stale map requests, pad the bbox, and skip reloads still covered
-- perf: simplify routes to the viewport, slim POI payload, gzip geojson, reuse centroids
-- perf: cluster POI markers at low zoom instead of rendering every point
-- perf: reload territory/routes layers with the viewport bbox on pan/zoom
-- perf: filter territory and routes geojson to the viewport bbox like POIs
 - feat: store each territory cell's centroid for spatial bbox queries
+- perf: filter territory and routes geojson to the viewport bbox like POIs, and reload them on pan/zoom
+- perf: abort stale map requests, pad the bbox, and skip reloads still covered
+- perf: cluster POI markers at low zoom instead of rendering every point
+- perf: simplify routes to the viewport, slim POI payload, gzip geojson, reuse centroids
 - perf: build point/line geometries directly instead of round-tripping through GeoJSON strings
 - perf: load usernames once per geojson request instead of per feature
-- chore: cut v0.6.0, backfill v0.3.1-v0.5.0 changelog sections
+- test: cover geojson bbox views, centroids, and player colors
 
 ## [0.6.0] - 2026-10-28
 - Feature: installable PWA for mobile home screens

@@ -8,9 +8,10 @@ def backfill_centroid(apps, schema_editor):
     from game.grid import cell_centroid
 
     TerritoryCell = apps.get_model("game", "TerritoryCell")
-    for cell in TerritoryCell.objects.filter(centroid__isnull=True):
+    cells = list(TerritoryCell.objects.filter(centroid__isnull=True))
+    for cell in cells:
         cell.centroid = cell_centroid(cell.cell_id)
-        cell.save(update_fields=["centroid"])
+    TerritoryCell.objects.bulk_update(cells, ["centroid"], batch_size=1000)
 
 
 class Migration(migrations.Migration):

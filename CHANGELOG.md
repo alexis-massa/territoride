@@ -6,6 +6,7 @@ appended automatically to `[Unreleased]` by a commit hook (see
 [README.md](README.md)); versions are cut and tagged on `main` by hand.
 
 ## [Unreleased]
+- perf: simplify routes to the viewport, slim POI payload, gzip geojson, reuse centroids
 - perf: cluster POI markers at low zoom instead of rendering every point
 - perf: reload territory/routes layers with the viewport bbox on pan/zoom
 - perf: filter territory and routes geojson to the viewport bbox like POIs

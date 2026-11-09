@@ -6,6 +6,8 @@ appended automatically to `[Unreleased]` by a commit hook (see
 [README.md](README.md)); versions are cut and tagged on `main` by hand.
 
 ## [Unreleased]
+- feat: remember each player's latest visit per tile so 'only my activity' shows tiles since lost
+- feat: 'only my activity' map mode, colouring own tiles, rides and passes by recency
 - test: cover geojson bbox views, centroids, and player colors
 - perf: abort stale map requests, pad the bbox, and skip reloads still covered
 - perf: simplify routes to the viewport, slim POI payload, gzip geojson, reuse centroids

@@ -66,3 +66,29 @@ class TerritoryCell(models.Model):
     def __str__(self) -> str:
         """Admin/debug label."""
         return f"{self.cell_id} ({self.owner or 'unclaimed'})"
+
+
+class CellVisit(models.Model):
+    """A player's latest visit to an H3 cell, kept after someone else takes the tile.
+
+    Territory ownership only remembers the current holder, so this is what lets a
+    player see everywhere they went recently, including tiles since lost.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="cell_visits"
+    )
+    cell_id = models.CharField(max_length=20)
+    centroid = gis_models.PointField(srid=4326)
+    # Cascades with the activity, so deleting or expiring a ride also drops its visits.
+    activity = models.ForeignKey(Activity, on_delete=models.CASCADE, related_name="cell_visits")
+    visited_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["user", "cell_id"], name="unique_visit_per_user_cell")
+        ]
+
+    def __str__(self) -> str:
+        """Admin/debug label."""
+        return f"{self.cell_id} ({self.user})"

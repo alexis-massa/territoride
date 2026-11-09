@@ -141,19 +141,71 @@
       );
     });
 
-    function currentBbox() {
-      var bounds = map.getBounds();
-      return [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()].join(",");
+    // Layers are loaded for the viewport plus a margin, so small pans don't need a
+    // reload and cells/tracks at the edge aren't clipped (cells are matched by centroid).
+    var BBOX_MARGIN = 0.25;
+    var RELOAD_ZOOM_DELTA = 1;
+
+    // Viewport as [west, south, east, north] grown by margin (a fraction of its size),
+    // clamped to the world so a zoomed-out view still counts as fully loaded.
+    function viewBounds(margin) {
+      var b = map.getBounds();
+      var dx = (b.getEast() - b.getWest()) * margin;
+      var dy = (b.getNorth() - b.getSouth()) * margin;
+      return [
+        Math.max(b.getWest() - dx, -180),
+        Math.max(b.getSouth() - dy, -90),
+        Math.min(b.getEast() + dx, 180),
+        Math.min(b.getNorth() + dy, 90),
+      ];
     }
 
-    function loadSource(sourceId, url) {
-      fetch(url)
+    // Per-source state: the in-flight request (aborted when superseded, so a slow
+    // old response can't overwrite a newer one) and the area/zoom last loaded.
+    var sourceState = {};
+
+    function viewportIsLoaded(loaded) {
+      if (!loaded) return false;
+      var v = viewBounds(0);
+      return (
+        v[0] >= loaded.bbox[0] &&
+        v[1] >= loaded.bbox[1] &&
+        v[2] <= loaded.bbox[2] &&
+        v[3] <= loaded.bbox[3] &&
+        map.getZoom() - loaded.zoom < RELOAD_ZOOM_DELTA
+      );
+    }
+
+    // Loads sourceId's data for the viewport; skipped if the already-loaded area still
+    // covers it (unless force). onData can transform the response before it's applied.
+    function loadSource(sourceId, url, options) {
+      options = options || {};
+      var state = sourceState[sourceId] || (sourceState[sourceId] = {});
+      if (!options.force && viewportIsLoaded(state.loaded)) return;
+      if (state.controller) state.controller.abort();
+      var controller = (state.controller = new AbortController());
+      var bbox = viewBounds(BBOX_MARGIN);
+      var zoom = map.getZoom();
+      fetch(url + "?bbox=" + encodeURIComponent(bbox.join(",")), { signal: controller.signal })
         .then(function (resp) {
           return resp.json();
         })
         .then(function (data) {
-          map.getSource(sourceId).setData(data);
+          state.loaded = { bbox: bbox, zoom: zoom };
+          state.controller = null;
+          (options.onData || function (d) { map.getSource(sourceId).setData(d); })(data);
+        })
+        .catch(function (err) {
+          if (err.name !== "AbortError") throw err;
         });
+    }
+
+    function clearSource(sourceId) {
+      var state = sourceState[sourceId] || (sourceState[sourceId] = {});
+      if (state.controller) state.controller.abort();
+      state.controller = null;
+      state.loaded = null;
+      map.getSource(sourceId).setData(EMPTY_FC);
     }
 
     map.on("load", function () {
@@ -205,11 +257,42 @@
       ]).then(function (images) {
         map.addImage("pass", images[0]);
         map.addImage("peak", images[1]);
-        map.addSource("pois", { type: "geojson", data: EMPTY_FC });
+        var UNCLUSTERED = ["!", ["has", "point_count"]];
+        map.addSource("pois", {
+          type: "geojson",
+          data: EMPTY_FC,
+          cluster: true,
+          clusterMaxZoom: 13,
+          clusterRadius: 50,
+        });
+        map.addLayer({
+          id: "pois-cluster-circle",
+          type: "circle",
+          source: "pois",
+          filter: ["has", "point_count"],
+          paint: {
+            "circle-radius": ["interpolate", ["linear"], ["get", "point_count"], 1, 10, 500, 24],
+            "circle-color": "#3b6fd6",
+            "circle-stroke-width": 2,
+            "circle-stroke-color": "#ffffff",
+          },
+        });
+        map.addLayer({
+          id: "pois-cluster-count",
+          type: "symbol",
+          source: "pois",
+          filter: ["has", "point_count"],
+          layout: {
+            "text-field": ["get", "point_count_abbreviated"],
+            "text-size": 12,
+          },
+          paint: { "text-color": "#ffffff" },
+        });
         map.addLayer({
           id: "pois-circle",
           type: "circle",
           source: "pois",
+          filter: UNCLUSTERED,
           paint: {
             "circle-radius": ["interpolate", ["linear"], ["zoom"], 6, 2, 10, 5, 14, 13],
             "circle-color": ["case", ["==", ["get", "owner"], null], "#000000", ["get", "color"]],
@@ -222,11 +305,26 @@
           id: "pois-icon",
           type: "symbol",
           source: "pois",
+          filter: UNCLUSTERED,
           layout: {
             "icon-image": ["match", ["get", "poi_type"], "summit", "peak", "pass"],
             "icon-size": ["interpolate", ["linear"], ["zoom"], 6, 0.15, 10, 0.4, 14, 1],
             "icon-allow-overlap": true,
           },
+        });
+
+        map.on("click", "pois-cluster-circle", function (e) {
+          var cluster = e.features[0];
+          map.getSource("pois").getClusterExpansionZoom(cluster.properties.cluster_id, function (err, zoom) {
+            if (err) return;
+            map.easeTo({ center: cluster.geometry.coordinates, zoom: zoom });
+          });
+        });
+        map.on("mouseenter", "pois-cluster-circle", function () {
+          map.getCanvas().style.cursor = "pointer";
+        });
+        map.on("mouseleave", "pois-cluster-circle", function () {
+          map.getCanvas().style.cursor = "";
         });
 
         var poiPopup = new maplibregl.Popup({
@@ -259,22 +357,31 @@
           map.on("mouseleave", layerId, hidePoiPopup);
         });
 
-        function loadPOIs() {
-          loadSource("pois", "{% url 'pois_geojson' %}?bbox=" + encodeURIComponent(currentBbox()));
-        }
+        // The type filter is applied to the data itself (not a layer filter) so cluster
+        // counts only include the enabled types.
+        var allPois = EMPTY_FC;
 
         function applyPoiTypeFilter() {
           var enabled = Array.from(document.querySelectorAll(".poi-type-toggle"))
             .filter(function (el) { return el.checked; })
             .map(function (el) { return el.dataset.poiType; });
-          var filter = enabled.length
-            ? ["in", ["get", "poi_type"], ["literal", enabled]]
-            : ["==", ["get", "poi_type"], ""];
-          map.setFilter("pois-circle", filter);
-          map.setFilter("pois-icon", filter);
+          map.getSource("pois").setData({
+            type: "FeatureCollection",
+            features: allPois.features.filter(function (f) {
+              return enabled.indexOf(f.properties.poi_type) !== -1;
+            }),
+          });
         }
 
-        applyPoiTypeFilter();
+        function loadPOIs() {
+          loadSource("pois", "{% url 'pois_geojson' %}", {
+            onData: function (data) {
+              allPois = data;
+              applyPoiTypeFilter();
+            },
+          });
+        }
+
         document.querySelectorAll(".poi-type-toggle").forEach(function (el) {
           el.addEventListener("change", applyPoiTypeFilter);
         });
@@ -283,30 +390,35 @@
         loadPOIs();
       });
 
-      function loadTerritory() {
-        loadSource("territory", "{% url 'territory_geojson' %}");
+      function loadTerritory(force) {
+        loadSource("territory", "{% url 'territory_geojson' %}", { force: force });
       }
 
-      function loadRoutes() {
-        loadSource("routes", "{% url 'routes_geojson' %}");
+      function loadRoutes(force) {
+        loadSource("routes", "{% url 'routes_geojson' %}", { force: force });
       }
 
-      if (document.getElementById("toggle-territory").checked) loadTerritory();
-      if (document.getElementById("toggle-routes").checked) loadRoutes();
+      if (document.getElementById("toggle-territory").checked) loadTerritory(true);
+      if (document.getElementById("toggle-routes").checked) loadRoutes(true);
+
+      map.on("moveend", function () {
+        if (document.getElementById("toggle-territory").checked) loadTerritory();
+        if (document.getElementById("toggle-routes").checked) loadRoutes();
+      });
 
       document.getElementById("toggle-territory").addEventListener("change", function (e) {
         if (e.target.checked) {
-          loadTerritory();
+          loadTerritory(true);
         } else {
-          map.getSource("territory").setData(EMPTY_FC);
+          clearSource("territory");
         }
       });
 
       document.getElementById("toggle-routes").addEventListener("change", function (e) {
         if (e.target.checked) {
-          loadRoutes();
+          loadRoutes(true);
         } else {
-          map.getSource("routes").setData(EMPTY_FC);
+          clearSource("routes");
         }
       });
     });

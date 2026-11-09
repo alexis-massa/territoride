@@ -51,6 +51,7 @@ class TerritoryCell(models.Model):
     """An H3 grid cell's current ownership."""
 
     cell_id = models.CharField(max_length=20, primary_key=True)
+    centroid = gis_models.PointField(srid=4326)
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

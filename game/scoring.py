@@ -39,11 +39,18 @@ def _territory_group_value(
     return TERRITORY_CELL_VALUE * multiplier * cell_count
 
 
+def player_colors() -> dict[str, str]:
+    """Display color for every player, unique up to len(PLAYER_COLORS) players."""
+    usernames = User.objects.order_by("id").values_list("username", flat=True)
+    return {name: PLAYER_COLORS[i % len(PLAYER_COLORS)] for i, name in enumerate(usernames)}
+
+
 def player_color(username: str) -> str:
-    """Deterministic display color for a player, unique up to len(PLAYER_COLORS) players."""
-    usernames = list(User.objects.order_by("id").values_list("username", flat=True))
-    index = usernames.index(username) if username in usernames else zlib.crc32(username.encode())
-    return PLAYER_COLORS[index % len(PLAYER_COLORS)]
+    """Deterministic display color for one player; use player_colors() when looping."""
+    return (
+        player_colors().get(username)
+        or PLAYER_COLORS[zlib.crc32(username.encode()) % len(PLAYER_COLORS)]
+    )
 
 
 def player_score(user: User) -> dict[str, int]:
@@ -73,8 +80,7 @@ def player_score(user: User) -> dict[str, int]:
         for a in Activity.objects.filter(user=user, sport_type__in=SWIM_SPORT_TYPES)
     )
     poi_points = sum(
-        current_value(poi.altitude_m or 0, poi.claimed_at)
-        for poi in POI.objects.filter(owner=user)
+        current_value(poi.altitude_m or 0, poi.claimed_at) for poi in POI.objects.filter(owner=user)
     )
     return {
         "territory_points": round(territory_points),
@@ -162,6 +168,7 @@ def leaderboard(*, with_detail: bool = False) -> list[dict[str, Any]]:
     doesn't need it.
     """
     rows: list[dict[str, Any]] = []
+    colors = player_colors()
     for user in User.objects.all():
         cell_count = TerritoryCell.objects.filter(owner=user).count()
         poi_count = POI.objects.filter(owner=user).count()
@@ -172,7 +179,7 @@ def leaderboard(*, with_detail: bool = False) -> list[dict[str, Any]]:
         territory_pct, poi_pct = score_split_pct(score)
         row = {
             "username": user.username,
-            "color": player_color(user.username),
+            "color": colors[user.username],
             "cell_count": cell_count,
             "poi_count": poi_count,
             "territory_pct": territory_pct,

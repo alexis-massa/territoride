@@ -1,17 +1,19 @@
-import json
+import math
 import re
 from typing import Any
 
 import gpxpy
-import h3
 import markdown
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.contrib.gis.db.models import Extent, LineStringField
 from django.contrib.gis.geos import LineString, Polygon
+from django.db.models import Exists, F, Func, OuterRef, Value
 from django.http import HttpRequest, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import redirect, render
 from django.templatetags.static import static
+from django.views.decorators.gzip import gzip_page
 from django.views.decorators.http import require_POST
 
 from accounts.models import User
@@ -25,10 +27,15 @@ from .scoring import (
     SPORT_MULTIPLIERS,
     TERRITORY_CELL_VALUE,
     leaderboard,
-    player_color,
+    player_colors,
 )
 
 BBOX_PARAM = "bbox"
+BBOX_ERROR = "bbox must be min_lon,min_lat,max_lon,max_lat"
+
+# Route simplification tolerance, as a fraction of the viewport width: sub-pixel detail
+# is dropped server-side instead of being shipped to the browser and then discarded.
+ROUTE_SIMPLIFY_DIVISOR = 1500
 
 
 def _bbox_from_request(request: HttpRequest) -> tuple[float, float, float, float]:
@@ -36,23 +43,35 @@ def _bbox_from_request(request: HttpRequest) -> tuple[float, float, float, float
     if BBOX_PARAM not in request.GET:
         raise ValueError("Missing bbox param")
     min_lon, min_lat, max_lon, max_lat = (float(v) for v in request.GET[BBOX_PARAM].split(","))
+    if not all(math.isfinite(v) for v in (min_lon, min_lat, max_lon, max_lat)):
+        raise ValueError("bbox values must be finite")
     return min_lon, min_lat, max_lon, max_lat
+
+
+def _bbox_polygon(bbox: tuple[float, float, float, float]) -> Polygon:
+    polygon = Polygon.from_bbox(bbox)
+    polygon.srid = 4326
+    return polygon
 
 
 def _user_territory_bbox(user: User) -> tuple[float, float, float, float] | None:
     """Bounding box covering a player's current cells and passes, or None if they hold nothing."""
-    lats: list[float] = []
-    lons: list[float] = []
-    for cell_id in TerritoryCell.objects.filter(owner=user).values_list("cell_id", flat=True):
-        lat, lng = h3.cell_to_latlng(cell_id)
-        lats.append(lat)
-        lons.append(lng)
-    for location in POI.objects.filter(owner=user).values_list("location", flat=True):
-        lons.append(location.x)
-        lats.append(location.y)
-    if not lats:
+    extents = [
+        extent
+        for extent in (
+            TerritoryCell.objects.filter(owner=user).aggregate(e=Extent("centroid"))["e"],
+            POI.objects.filter(owner=user).aggregate(e=Extent("location"))["e"],
+        )
+        if extent is not None
+    ]
+    if not extents:
         return None
-    return min(lons), min(lats), max(lons), max(lats)
+    return (
+        min(e[0] for e in extents),
+        min(e[1] for e in extents),
+        max(e[2] for e in extents),
+        max(e[3] for e in extents),
+    )
 
 
 def map_view(request: HttpRequest) -> HttpResponse:
@@ -72,7 +91,7 @@ def map_view(request: HttpRequest) -> HttpResponse:
     )
 
 
-def _territory_feature(cell: TerritoryCell) -> dict[str, Any]:
+def _territory_feature(cell: TerritoryCell, colors: dict[str, str]) -> dict[str, Any]:
     """Build one territory GeoJSON feature for a captured (owned) cell."""
     assert cell.owner is not None
     assert cell.captured_at is not None
@@ -81,7 +100,7 @@ def _territory_feature(cell: TerritoryCell) -> dict[str, Any]:
         "geometry": {"type": "Polygon", "coordinates": [cell_boundary(cell.cell_id)]},
         "properties": {
             "owner": cell.owner.username,
-            "color": player_color(cell.owner.username),
+            "color": colors[cell.owner.username],
             "captured_at": cell.captured_at.isoformat(),
             "age_days": elapsed_days(cell.captured_at),
             "remaining": current_value(1.0, cell.captured_at),
@@ -89,65 +108,103 @@ def _territory_feature(cell: TerritoryCell) -> dict[str, Any]:
     }
 
 
+@gzip_page
 def territory_geojson_view(request: HttpRequest) -> HttpResponse:
-    """Captured territory cells, as GeoJSON."""
-    cells = TerritoryCell.objects.exclude(owner=None).select_related("owner")
-    features = [_territory_feature(cell) for cell in cells]
+    """Captured territory cells centered in the viewport's "bbox" query param, as GeoJSON."""
+    try:
+        bbox = _bbox_polygon(_bbox_from_request(request))
+    except ValueError:
+        return HttpResponseBadRequest(BBOX_ERROR)
+
+    cells = (
+        TerritoryCell.objects.exclude(owner=None)
+        .filter(centroid__within=bbox)
+        .select_related("owner")
+    )
+    colors = player_colors()
+    features = [_territory_feature(cell, colors) for cell in cells]
     return JsonResponse({"type": "FeatureCollection", "features": features})
 
 
+@gzip_page
 def routes_geojson_view(request: HttpRequest) -> HttpResponse:
-    """Tracks of activities that have captured at least one cell, as GeoJSON."""
-    activities = Activity.objects.filter(
-        captured_cells__isnull=False, track__isnull=False
-    ).distinct()
-    features = []
-    for activity in activities:
-        assert activity.track is not None
-        features.append(
-            {
-                "type": "Feature",
-                "geometry": json.loads(activity.track.geojson),
-                "properties": {
-                    "name": activity.name,
-                    "owner": activity.user.username,
-                    "color": player_color(activity.user.username),
-                },
-            }
+    """Tracks of activities that captured a cell and cross the viewport's "bbox", as GeoJSON."""
+    try:
+        bounds = _bbox_from_request(request)
+    except ValueError:
+        return HttpResponseBadRequest(BBOX_ERROR)
+
+    tolerance = (bounds[2] - bounds[0]) / ROUTE_SIMPLIFY_DIVISOR
+    activities = (
+        Activity.objects.filter(
+            Exists(TerritoryCell.objects.filter(captured_by=OuterRef("pk"))),
+            track__intersects=_bbox_polygon(bounds),
         )
+        .annotate(
+            simplified=Func(
+                F("track"),
+                Value(tolerance),
+                function="ST_SimplifyPreserveTopology",
+                output_field=LineStringField(srid=4326),
+            ),
+            owner_name=F("user__username"),
+        )
+        .only("name")
+    )
+    colors = player_colors()
+    features = [
+        {
+            "type": "Feature",
+            "geometry": {"type": "LineString", "coordinates": list(activity.simplified.coords)},
+            "properties": {
+                "name": activity.name,
+                "owner": activity.owner_name,
+                "color": colors[activity.owner_name],
+            },
+        }
+        for activity in activities
+    ]
     return JsonResponse({"type": "FeatureCollection", "features": features})
 
 
-def _poi_feature(poi: POI) -> dict[str, Any]:
-    """Build one POI GeoJSON feature."""
+def _poi_feature(poi: POI, colors: dict[str, str]) -> dict[str, Any]:
+    """Build one POI GeoJSON feature; claim fields are only present on claimed POIs."""
+    properties: dict[str, Any] = {
+        "name": poi.name,
+        "poi_type": poi.poi_type,
+        "poi_type_label": poi.get_poi_type_display(),
+        "altitude_m": poi.altitude_m,
+    }
+    if poi.owner and poi.claimed_at:
+        properties |= {
+            "owner": poi.owner.username,
+            "color": colors[poi.owner.username],
+            "captured_at": poi.claimed_at.isoformat(),
+            "age_days": elapsed_days(poi.claimed_at),
+            "remaining": current_value(1.0, poi.claimed_at),
+        }
     return {
         "type": "Feature",
-        "geometry": json.loads(poi.location.geojson),
-        "properties": {
-            "name": poi.name,
-            "poi_type": poi.poi_type,
-            "poi_type_label": poi.get_poi_type_display(),
-            "altitude_m": poi.altitude_m,
-            "owner": poi.owner.username if poi.owner else None,
-            "color": player_color(poi.owner.username) if poi.owner else None,
-            "captured_at": poi.claimed_at.isoformat() if poi.claimed_at else None,
-            "age_days": elapsed_days(poi.claimed_at) if poi.claimed_at else None,
-            "remaining": current_value(1.0, poi.claimed_at) if poi.claimed_at else None,
-        },
+        "geometry": {"type": "Point", "coordinates": [poi.location.x, poi.location.y]},
+        "properties": properties,
     }
 
 
+@gzip_page
 def pois_geojson_view(request: HttpRequest) -> HttpResponse:
-    """Mountain pass POIs covering the viewport's "bbox" query param, as GeoJSON."""
+    """POIs (passes, summits) inside the viewport's "bbox" query param, as GeoJSON."""
     try:
-        min_lon, min_lat, max_lon, max_lat = _bbox_from_request(request)
+        bbox = _bbox_polygon(_bbox_from_request(request))
     except ValueError:
-        return HttpResponseBadRequest("bbox must be min_lon,min_lat,max_lon,max_lat")
+        return HttpResponseBadRequest(BBOX_ERROR)
 
-    bbox = Polygon.from_bbox((min_lon, min_lat, max_lon, max_lat))
-    bbox.srid = 4326
-    pois = POI.objects.filter(location__within=bbox).select_related("owner")
-    features = [_poi_feature(poi) for poi in pois]
+    pois = (
+        POI.objects.filter(location__within=bbox)
+        .select_related("owner")
+        .only("name", "poi_type", "altitude_m", "location", "claimed_at", "owner__username")
+    )
+    colors = player_colors()
+    features = [_poi_feature(poi, colors) for poi in pois]
     return JsonResponse({"type": "FeatureCollection", "features": features})
 
 

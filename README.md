@@ -41,6 +41,10 @@ Rust (axum, sqlx, h3o) and a Svelte 5 PWA with MapLibre, embedded in one static 
 
 `INSTANCE=territoride-preview just …` targets the preview instance instead of the live one.
 
+CI (GitHub Actions, `.github/workflows/ci.yml`) runs `just lint`, `just test` and the builds on every push to
+`main` and every pull request; it reads pi-kit with the repository secret `PI_KIT_DEPLOY_KEY` (pi-kit README,
+"CI in an app"). Nothing is deployed from CI.
+
 The binary (what the Python management commands and the Django admin did):
 
 | Command | Does |

@@ -5,6 +5,12 @@ follows [Keep a Changelog](https://keepachangelog.com/). Versions are cut
 and tagged on `main` by hand.
 
 ## [Unreleased]
+- chore: CI (GitHub Actions: lint, tests, builds) and Dependabot for the actions, from pi-kit v0.4.2
+- test: the integration tests drop their databases
+
+## [0.8.1] - 2026-11-15
+- chore: migration 3 records the drop of the unused PostGIS extensions (tiger geocoder, topology,
+  fuzzystrmatch), done on the Pi when the app moved to an ordinary database role; no change for players
 
 ## [0.8.0] - 2026-11-15
 - chore: rewrite in Rust (axum, sqlx, h3o) and a Svelte PWA, one small static image; same game, same data

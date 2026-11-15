@@ -1,4 +1,4 @@
-# pi-kit v0.4.1
+# pi-kit v0.4.2
 # Tool versions for this repo: `mise install` (once), then the tools are on PATH inside the folder.
 [tools]
 node = "24.22.3"

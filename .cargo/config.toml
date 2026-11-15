@@ -1,4 +1,4 @@
-# pi-kit v0.4.1
+# pi-kit v0.4.2
 # pi-common is a private git dependency: let cargo use the system git, which uses your SSH agent.
 [net]
 git-fetch-with-cli = true

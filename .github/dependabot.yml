@@ -1,0 +1,13 @@
+# pi-kit v0.4.2
+# Monthly grouped pull requests that bump the GitHub Actions (pinned by commit). Cargo and npm are not here:
+# Dependabot cannot fetch the private pi-kit, so update them by hand (`cargo update`, `pnpm update`) and
+# pi-kit itself by following its UPGRADING.md.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]

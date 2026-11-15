@@ -4,6 +4,8 @@ Choices this app made where pi-kit or the brief left a detail open. Newest first
 
 | Date | Decision | Why |
 | --- | --- | --- |
+| 2026-11-15 | The app's database login is `territoride`, an ordinary role; the Postgres superuser (renamed from `territoride` to `pi_admin`) is only used by pi-infra's scripts | Same as the other apps; a bug in the app can no longer touch other databases or the server |
+| 2026-11-15 | Migration 3 drops the tiger geocoder, topology and fuzzystrmatch extensions (`IF EXISTS`) | Unused; they caused two restore bugs and 50 empty tables in every dump. Migration 1 stays as it was (its checksum is recorded) |
 | 2026-11-15 | Version 0.8.0 for the rewrite | Same game and data, so not a 1.0 break; the Python version is `python-final` (v0.7.0) |
 | 2026-11-15 | The Django admin is replaced by CLI commands (`list-users`, `list-activities`, `delete-activity`, `delete-user`, `leaderboard`, `recapture`) | The admin was used for the owner's own chores (release an activity, recapture, delete a player); no web admin means no admin password and no extra attack surface. Add admin pages later only if a need shows up |
 | 2026-11-15 | Password login is dropped; players log in through Strava only. Old Django password hashes stay in the table untouched | Players never had passwords; the owner's admin login is gone with the admin. Rolling back to Python keeps working |

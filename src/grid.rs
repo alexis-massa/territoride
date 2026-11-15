@@ -28,6 +28,11 @@ pub fn cell_boundary(cell: CellIndex) -> Vec<(f64, f64)> {
     ring
 }
 
+/// The outline of a cell given by its stored H3 id; `None` if the id is not a cell.
+pub fn boundary_of(cell_id: &str) -> Option<Vec<(f64, f64)>> {
+    cell_id.parse::<CellIndex>().ok().map(cell_boundary)
+}
+
 /// Centre of a cell as `(lng, lat)`.
 pub fn cell_centroid(cell: CellIndex) -> (f64, f64) {
     let c = LatLng::from(cell);

@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT strava_access_token_encrypted AS access, strava_refresh_token_encrypted AS refresh,\n                strava_token_expires_at AS expires_at FROM accounts_user WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "access",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "accounts_user",
+            "name": "strava_access_token_encrypted"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "refresh",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "accounts_user",
+            "name": "strava_refresh_token_encrypted"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "expires_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "accounts_user",
+            "name": "strava_token_expires_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "e128b1a4bd06d72afd4a3c47bc9223d24921ccae0fc3bd81c40ec229b497cd47"
+}

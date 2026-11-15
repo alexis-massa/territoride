@@ -1,0 +1,105 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT p.name, p.poi_type, p.altitude_m, ST_X(p.location) AS \"x!\", ST_Y(p.location) AS \"y!\",\n                  p.owner_id, u.username AS \"owner?\", p.claimed_at\n           FROM game_poi p LEFT JOIN accounts_user u ON u.id = p.owner_id\n           WHERE ST_Within(p.location, ST_MakeEnvelope($1, $2, $3, $4, 4326))",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "game_poi",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "poi_type",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "game_poi",
+            "name": "poi_type"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "altitude_m",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "game_poi",
+            "name": "altitude_m"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "x!",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "y!",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "owner_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "game_poi",
+            "name": "owner_id"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "owner?",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "accounts_user",
+            "name": "username"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "claimed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "game_poi",
+            "name": "claimed_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8",
+        "Float8",
+        "Float8",
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      null,
+      null,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "aa69c54fb488a4106083ec4031b1165ae5f3308e6451d1a75669c596e243b836"
+}

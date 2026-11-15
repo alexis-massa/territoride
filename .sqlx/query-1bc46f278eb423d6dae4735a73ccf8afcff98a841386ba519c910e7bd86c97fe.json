@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE accounts_user SET strava_access_token_encrypted = $2, strava_refresh_token_encrypted = $3,\n                strava_token_expires_at = $4 WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1bc46f278eb423d6dae4735a73ccf8afcff98a841386ba519c910e7bd86c97fe"
+}

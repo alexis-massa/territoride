@@ -1,0 +1,44 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT cell_id, visited_at FROM game_cellvisit\n             WHERE user_id = $1 AND ST_Within(centroid, ST_MakeEnvelope($2, $3, $4, $5, 4326))",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "cell_id",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "game_cellvisit",
+            "name": "cell_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "visited_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "game_cellvisit",
+            "name": "visited_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Float8",
+        "Float8",
+        "Float8",
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "230d348d64fb91a1d2c73861e2f04641aa657d1c50223049c93e0c09d7372392"
+}

@@ -5,8 +5,9 @@
 
 mod common;
 
+use common::{encode, line, ring};
+
 use std::collections::HashMap;
-use std::f64::consts::PI;
 
 use chrono::{DateTime, Duration, Utc};
 use serde_json::{Value, json};
@@ -19,53 +20,6 @@ const FIXTURE: &str = include_str!("fixtures/scenario.json");
 
 fn iso(d: DateTime<Utc>) -> String {
     d.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true)
-}
-
-fn line(lat: f64, lng: f64, bearing: f64, km: f64, n: usize) -> Vec<(f64, f64)> {
-    (0..n)
-        .map(|i| {
-            let d = km * 1000.0 * i as f64 / (n - 1) as f64;
-            (
-                lat + d * bearing.cos() / 111_000.0,
-                lng + d * bearing.sin() / (111_000.0 * lat.to_radians().cos()),
-            )
-        })
-        .collect()
-}
-
-fn ring(lat: f64, lng: f64, radius_m: f64, n: usize) -> Vec<(f64, f64)> {
-    let mut pts: Vec<_> = (0..n)
-        .map(|i| {
-            let a = 2.0 * PI * i as f64 / n as f64;
-            (
-                lat + radius_m * a.sin() / 111_000.0,
-                lng + radius_m * a.cos() / (111_000.0 * lat.to_radians().cos()),
-            )
-        })
-        .collect();
-    pts.push(pts[0]);
-    pts
-}
-
-/// Google polyline encoding, the inverse of `polyline::decode`.
-fn encode(points: &[(f64, f64)]) -> String {
-    let (mut out, mut prev) = (String::new(), (0i64, 0i64));
-    for (lat, lng) in points {
-        let cur = (
-            (lat * 1e5).round_ties_even() as i64,
-            (lng * 1e5).round_ties_even() as i64,
-        );
-        for d in [cur.0 - prev.0, cur.1 - prev.1] {
-            let mut v = if d < 0 { !(d << 1) } else { d << 1 };
-            while v >= 0x20 {
-                out.push((((0x20 | (v & 0x1f)) + 63) as u8) as char);
-                v >>= 5;
-            }
-            out.push(((v + 63) as u8) as char);
-        }
-        prev = cur;
-    }
-    out
 }
 
 /// A Strava activity summary being put together.

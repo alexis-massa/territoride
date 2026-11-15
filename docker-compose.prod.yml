@@ -1,29 +1,24 @@
 services:
   db:
-    ports: !reset []
-    networks:
-      default:
-      # Lets other apps on this host (e.g. fittracker) reach this Postgres
-      # instance directly, via a dedicated database/role - not the same
-      # database territoride itself uses.
-      data:
-        aliases:
-          - territoride-db
+    # In production Postgres is the shared one of the pi-infra repo (network `data`, host `territoride-db`).
+    # This profile keeps `docker compose up` from starting a second Postgres on the same data.
+    profiles: [local]
 
   app:
     command: uv run gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2
     ports: !reset []
+    depends_on: !reset []
     networks:
-      default:
-      web:
+      - web
+      - data
     labels:
       - "caddy=${ALLOWED_HOSTS}"
       - "caddy.reverse_proxy={{upstreams 8000}}"
 
-# Reverse-proxied by the shared Caddy in the sibling `caddy-docker-proxy` repo, which
-# discovers this service via the labels above - see that repo for setup.
+# Reverse-proxied by the shared Caddy of the pi-infra repo, which discovers this service via the labels above.
+# Both networks are created by pi-infra's setup.sh. In .env: POSTGRES_HOST=territoride-db (the shared Postgres).
 networks:
   web:
     external: true
   data:
-    name: data
+    external: true

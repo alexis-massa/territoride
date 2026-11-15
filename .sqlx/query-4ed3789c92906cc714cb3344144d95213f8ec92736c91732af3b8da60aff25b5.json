@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE game_territorycell SET owner_id = $2, captured_by_id = $3, captured_at = $4\n         WHERE cell_id = ANY($1) AND (owner_id IS NULL OR captured_at < $4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "Int8",
+        "Int8",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4ed3789c92906cc714cb3344144d95213f8ec92736c91732af3b8da60aff25b5"
+}

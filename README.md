@@ -1,65 +1,44 @@
 # TerritoRide
 
-A location-based strategy game built on real-world sports activities. Connect
-Strava, and every ride, run, or hike becomes a move on a living, competitive
-map.
+Runs on the Raspberry Pi at https://territoride.duckdns.org. Built from the pi-kit template (Rust + axum + sqlx, Svelte 5
+PWA embedded in the binary); the shared code lives in [pi-kit](https://github.com/alexis-massa/pi-kit) and is
+pinned by tag in `Cargo.toml` and `web/package.json`.
 
-A personal hobby project for a small group of friends — built end to end
-(including deployment) largely as an experiment in pair-programming with
-Claude. Realistically nobody else will ever touch this code, but it's public
-in case it's useful or interesting to look at.
+## Commands
 
-## Concept
+| Command | Does |
+| --- | --- |
+| `just setup` | once after cloning: tools (mise), web dependencies, git hooks |
+| `just dev` | API + Vite with hot reload on http://localhost:5173 (starts the local Postgres) |
+| `just fmt` / `just lint` | format / check everything (the pre-commit hook runs the checks) |
+| `just test` | Rust tests against a fresh local database, then the web tests |
+| `just prepare` | refresh `.sqlx/` after changing a query or a migration (commit it) |
+| `just build` / `just image` | arm64 binary in `dist/app` / container image |
+| `just deploy` / `just rollback` | ship the current commit to the Pi / go back to the previous image |
+| `just logs` / `just status` | the app on the Pi |
+| `just create-user NAME` | create a user on the Pi |
 
-The world is made of two systems:
+The binary itself: `territoride serve | migrate | healthcheck | create-user NAME | set-password NAME`.
 
-- **Territory** — the map is a grid of small hexagonal tiles. Ride through
-  one and it's yours; ride a closed loop and you also claim everything
-  enclosed inside it.
-- **Points of interest** — mountain passes (worldwide, sourced from
-  OpenStreetMap) captured by physically riding within range of one.
-  Territory ownership never grants a POI - you have to go there yourself,
-  and so does anyone who wants to take it from you.
+## Layout
 
-Ownership is always "last rider through wins" - simple, no ambiguity. Nothing
-is permanent: every capture decays linearly to zero value over 30 days and
-is then released back to unclaimed automatically, so the map keeps moving
-even if nobody's actively fighting over it.
+- `src/` the server: `main.rs` (CLI), `routes.rs` (HTTP), `users.rs` (users and passwords).
+- `migrations/` SQL migrations, applied at startup; additive only, each with a rollback note.
+- `web/` the Svelte app; `web/dist` is embedded into the binary at build time.
+- `compose.yml`, `Dockerfile`, `deploy.sh`, `justfile`, `lefthook.yml`, `.gitignore`, `mise.toml`,
+  `rust-toolchain.toml`, `.cargo/config.toml`: copied from pi-kit (header `# pi-kit vX.Y.Z`); change them by
+  upgrading pi-kit, not by hand.
 
-See [GAME_DESIGN.md](GAME_DESIGN.md) for the full ruleset and open design
-decisions, [ROADMAP.md](ROADMAP.md) for how this got built, and
-[CHANGELOG.md](CHANGELOG.md) for what's actually shipped.
+## Configuration
 
-## Stack
+Environment only (see `.env.example` and pi-infra `APP_CONTRACT.md`): `DATABASE_URL`, `APP_DOMAIN`,
+`BIND_ADDR`, `COOKIE_SECURE`, `SESSION_DAYS`, `RUST_LOG`.
 
-Django + GeoDjango + PostGIS, MapLibre GL JS, Strava OAuth for login, H3 for
-the hex grid, `uv` for dependency management. Deployed via Docker Compose +
-Caddy (automatic HTTPS) on a Raspberry Pi, behind DuckDNS for a stable
-address. Deliberately minimal - no Redis, no task queue, no build step for
-the frontend.
+## First deploy
 
-## Local development
+On the Pi, from pi-infra: `./add-app.sh territoride --env-file ~/territoride/.env`, then add
+`APP_DOMAIN=territoride.duckdns.org` to that file. Then here: `just deploy` and `just create-user territoride`.
 
-```bash
-./setup.sh
-```
-
-Prompts for Strava API credentials (from
-[strava.com/settings/api](https://www.strava.com/settings/api) - set that
-app's "Authorization Callback Domain" to `localhost`; leave blank to fill in
-later), generates everything else that should be random, enables the
-changelog commit hook, and builds/starts the app at http://localhost:8000.
-
-Refuses to run if `.env` already exists, so it's safe to leave lying around -
-remove `.env` first if you want to regenerate it.
-
-## Changelog
-
-[CHANGELOG.md](CHANGELOG.md) follows [Keep a Changelog](https://keepachangelog.com/).
-A commit hook (`.githooks/post-commit`) automatically appends every commit's
-subject line to the `[Unreleased]` section - versions are cut and tagged on
-`main` by hand when it feels like a real milestone.
-
-## License
-
-[MIT](LICENSE)
+A second instance (e.g. a preview on another host name, with its own database): `add-app.sh territoride-preview
+--env-file ~/territoride-preview/.env`, its own `APP_DOMAIN`, then `INSTANCE=territoride-preview just deploy`. Instances share
+the app's image tags, so deploy the live one again after removing a preview.

@@ -1,0 +1,4 @@
+{
+  "extends": "pi-ui/tsconfig.json",
+  "include": ["src", "*.config.ts"]
+}

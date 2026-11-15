@@ -1,0 +1,5 @@
+# pi-kit v0.4.1
+[toolchain]
+channel = "1.100"
+components = ["rustfmt", "clippy"]
+targets = ["aarch64-unknown-linux-musl"]

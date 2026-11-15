@@ -1,0 +1,46 @@
+[package]
+name = "territoride"
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.100"
+publish = false
+
+[dependencies]
+pi-common = { git = "ssh://git@github.com/alexis-massa/pi-kit.git", tag = "v0.4.1" }
+axum = { version = "0.8", features = ["macros"] }
+axum-extra = { version = "0.12", features = ["cookie"] }
+clap = { version = "4", features = ["derive"] }
+rust-embed = { version = "8", features = ["mime-guess"] }
+serde = { version = "1", features = ["derive"] }
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "postgres", "macros", "migrate", "chrono", "json"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+tracing = "0.1"
+h3o = { version = "0.11.1", features = ["geo"] }
+geo-types = "0.7.20"
+gpx = "0.10.0"
+chrono = "0.4.45"
+chrono-tz = "0.10.4"
+serde_json = "1"
+pulldown-cmark = "0.13.6"
+rand = "0.10.4"
+fernet = { version = "0.2.2", default-features = false, features = ["rustcrypto"] }
+crc32fast = "1.5.5"
+
+[dev-dependencies]
+http-body-util = "0.1"
+tower = { version = "0.5", features = ["util"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+codegen-units = 1
+lto = true
+panic = "abort"
+strip = true

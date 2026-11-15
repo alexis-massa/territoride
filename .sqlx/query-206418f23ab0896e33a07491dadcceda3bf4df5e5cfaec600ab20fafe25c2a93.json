@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO game_cellvisit (user_id, cell_id, centroid, activity_id, visited_at)\n         SELECT $1, c.id, ST_SetSRID(ST_MakePoint(c.x, c.y), 4326), $2, $3\n         FROM unnest($4::text[], $5::float8[], $6::float8[]) AS c(id, x, y)\n         ON CONFLICT ON CONSTRAINT unique_visit_per_user_cell DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Timestamptz",
+        "TextArray",
+        "Float8Array",
+        "Float8Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "206418f23ab0896e33a07491dadcceda3bf4df5e5cfaec600ab20fafe25c2a93"
+}

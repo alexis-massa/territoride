@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM game_cellvisit WHERE activity_id = ANY($1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4ac5d65501f8a544659dce72fce392ae1a3300debbacbc1f4b706e6c3d4793e1"
+}

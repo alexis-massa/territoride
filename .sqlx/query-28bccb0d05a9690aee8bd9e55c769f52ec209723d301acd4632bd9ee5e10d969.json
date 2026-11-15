@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE game_poi SET owner_id = $2, claimed_by_id = $1, claimed_at = $3\n         WHERE (owner_id IS NULL OR claimed_at < $3)\n           AND ST_DistanceSphere(location, (SELECT track FROM game_activity WHERE id = $1)) <= $4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Timestamptz",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "28bccb0d05a9690aee8bd9e55c769f52ec209723d301acd4632bd9ee5e10d969"
+}

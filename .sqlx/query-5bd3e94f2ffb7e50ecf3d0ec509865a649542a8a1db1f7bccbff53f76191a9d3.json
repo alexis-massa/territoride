@@ -1,0 +1,61 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT u.id, u.username,\n                  (SELECT count(*) FROM game_territorycell WHERE owner_id = u.id) AS \"cells!\",\n                  (SELECT count(*) FROM game_poi WHERE owner_id = u.id) AS \"pois!\",\n                  EXISTS (SELECT 1 FROM game_activity WHERE user_id = u.id AND sport_type = ANY($1)) AS \"swims!\"\n           FROM accounts_user u ORDER BY u.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "accounts_user",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "username",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "accounts_user",
+            "name": "username"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "cells!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "pois!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "swims!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "5bd3e94f2ffb7e50ecf3d0ec509865a649542a8a1db1f7bccbff53f76191a9d3"
+}

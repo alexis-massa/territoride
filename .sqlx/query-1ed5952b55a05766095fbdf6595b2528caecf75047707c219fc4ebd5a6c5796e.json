@@ -1,0 +1,55 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(a.sport_type, '') AS \"sport_type!\", a.distance_m, c.captured_at, count(*) AS \"n!\"\n           FROM game_territorycell c LEFT JOIN game_activity a ON a.id = c.captured_by_id\n           WHERE c.owner_id = $1 AND COALESCE(a.sport_type, '') <> ALL($2)\n           GROUP BY a.sport_type, a.distance_m, c.captured_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "sport_type!",
+        "type_info": "Varchar",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "distance_m",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "game_activity",
+            "name": "distance_m"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "captured_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "game_territorycell",
+            "name": "captured_at"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "n!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      null,
+      true,
+      true,
+      null
+    ]
+  },
+  "hash": "1ed5952b55a05766095fbdf6595b2528caecf75047707c219fc4ebd5a6c5796e"
+}

@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT p.name, p.poi_type, p.altitude_m, p.claimed_at AS \"claimed_at!\", a.sport_type AS \"sport_type?\"\n           FROM game_poi p LEFT JOIN game_activity a ON a.id = p.claimed_by_id\n           WHERE p.owner_id = $1 AND p.claimed_at IS NOT NULL ORDER BY p.claimed_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "game_poi",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "poi_type",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "game_poi",
+            "name": "poi_type"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "altitude_m",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "game_poi",
+            "name": "altitude_m"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "claimed_at!",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "game_poi",
+            "name": "claimed_at"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "sport_type?",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "game_activity",
+            "name": "sport_type"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "e07486cf356ed3650795d319b6a6028df8c331a1521e95fa3d54833cf47e1d0c"
+}

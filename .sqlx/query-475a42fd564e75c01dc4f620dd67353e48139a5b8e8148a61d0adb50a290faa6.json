@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT altitude_m, claimed_at FROM game_poi WHERE owner_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "altitude_m",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "game_poi",
+            "name": "altitude_m"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "claimed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "game_poi",
+            "name": "claimed_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "475a42fd564e75c01dc4f620dd67353e48139a5b8e8148a61d0adb50a290faa6"
+}

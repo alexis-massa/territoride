@@ -1,4 +1,4 @@
-# pi-kit v0.4.1
+# pi-kit v0.4.2
 # Git hooks (`lefthook install`, done by `just setup`): format check and lint on commit.
 # Tools come from mise (mise.toml), so the hooks also work where mise is not activated (IDEs, GUIs).
 pre-commit:

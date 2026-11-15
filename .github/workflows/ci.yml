@@ -1,0 +1,63 @@
+# pi-kit v0.4.2
+# Lint, test and build every push to main and every pull request with the same recipes as on the laptop:
+# `just lint`, `just test` (PostGIS in Docker), the web build and a release build. Nothing is published:
+# the arm64 image is still built on the laptop by `just deploy`.
+# pi-common and pi-ui come from the private pi-kit repository: the repository secret PI_KIT_DEPLOY_KEY (an
+# Actions secret, and the same as a Dependabot secret) is the private half of a read-only deploy key of
+# pi-kit (pi-kit README, "CI in an app").
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+  MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Read access to pi-kit
+        env:
+          PI_KIT_DEPLOY_KEY: ${{ secrets.PI_KIT_DEPLOY_KEY }}
+        run: |
+          [ -n "$PI_KIT_DEPLOY_KEY" ] || { echo "::error::secret PI_KIT_DEPLOY_KEY is not set"; exit 1; }
+          install -d -m 700 ~/.ssh
+          (umask 077 && printf '%s\n' "$PI_KIT_DEPLOY_KEY" > ~/.ssh/pi-kit)
+          echo 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' >> ~/.ssh/known_hosts
+          git config --global core.sshCommand 'ssh -i ~/.ssh/pi-kit -o IdentitiesOnly=yes'
+          # pnpm fetches pi-ui over HTTPS: send it over SSH with the same key.
+          git config --global url.ssh://git@github.com/alexis-massa/pi-kit.git.insteadOf https://github.com/alexis-massa/pi-kit.git
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+        with:
+          install_args: node pnpm just shellcheck shfmt
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: pnpm store path
+        id: pnpm
+        working-directory: web
+        run: echo "store=$(pnpm store path)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm.outputs.store }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+      - run: pnpm install --frozen-lockfile
+        working-directory: web
+      - run: just lint
+      - run: just test
+      - run: pnpm build
+        working-directory: web
+      - run: cargo build --locked --release

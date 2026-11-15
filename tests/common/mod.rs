@@ -4,7 +4,8 @@
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
 use axum::body::Body;
@@ -28,20 +29,34 @@ pub fn test_url() -> String {
     std::env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL (run `just test`)")
 }
 
-/// A database of its own, migrated.
-pub async fn fresh_db() -> PgPool {
+/// Test databases are named `td_test_<pid>_<n>`.
+const PREFIX: &str = "td_test_";
+
+/// A database of its own, migrated. It is dropped with this value (also when the test fails); databases
+/// left by a run that was killed are dropped by the next run.
+pub struct TestDb {
+    pub pool: PgPool,
+    name: String,
+}
+
+pub async fn fresh_db() -> TestDb {
     static NEXT: AtomicU32 = AtomicU32::new(0);
+    static SWEPT: AtomicBool = AtomicBool::new(false);
     let name = format!(
-        "td_test_{}_{}",
+        "{PREFIX}{}_{}",
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     );
     let base = test_url();
     let admin = pi_common::db::connect(&base).await.unwrap();
+    if !SWEPT.swap(true, Ordering::Relaxed) {
+        drop_stale(&admin).await;
+    }
     sqlx::query(AssertSqlSafe(format!("CREATE DATABASE {name}")))
         .execute(&admin)
         .await
         .unwrap();
+    admin.close().await;
     let (server, _) = base.rsplit_once('/').unwrap();
     let pool = pi_common::db::connect(&format!("{server}/{name}"))
         .await
@@ -49,7 +64,55 @@ pub async fn fresh_db() -> PgPool {
     pi_common::db::migrate(&pool, territoride::migrator())
         .await
         .unwrap();
-    pool
+    TestDb { pool, name }
+}
+
+impl Drop for TestDb {
+    fn drop(&mut self) {
+        let name = std::mem::take(&mut self.name);
+        // The test's runtime cannot block on a future here: drop the database from a thread with its own.
+        // A failure there must not panic again during a failing test's unwinding, so it is ignored.
+        let _ = std::thread::spawn(move || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            rt.block_on(async {
+                let admin = pi_common::db::connect(&test_url()).await.unwrap();
+                drop_db(&admin, &name).await;
+                admin.close().await;
+            });
+        })
+        .join();
+    }
+}
+
+/// Drop the test databases of processes that no longer run (Linux: their `/proc` entry is gone).
+async fn drop_stale(admin: &PgPool) {
+    if !Path::new("/proc/self").exists() {
+        return;
+    }
+    let names: Vec<String> =
+        sqlx::query_scalar("SELECT datname FROM pg_database WHERE starts_with(datname, $1)")
+            .bind(PREFIX)
+            .fetch_all(admin)
+            .await
+            .unwrap();
+    for name in names {
+        let pid = name[PREFIX.len()..].split('_').next().unwrap_or_default();
+        if pid.parse::<u32>().is_ok() && !Path::new("/proc").join(pid).exists() {
+            drop_db(admin, &name).await;
+        }
+    }
+}
+
+async fn drop_db(admin: &PgPool, name: &str) {
+    sqlx::query(AssertSqlSafe(format!(
+        "DROP DATABASE IF EXISTS {name} WITH (FORCE)"
+    )))
+    .execute(admin)
+    .await
+    .unwrap();
 }
 
 /// A player, by name.
@@ -201,11 +264,13 @@ pub struct Env {
     pub pool: PgPool,
     pub app: Router,
     pub strava: MockStrava,
+    _db: TestDb,
 }
 
 impl Env {
     pub async fn new() -> Self {
-        let pool = fresh_db().await;
+        let db = fresh_db().await;
+        let pool = db.pool.clone();
         let strava = MockStrava::start().await;
         let config = Config {
             database_url: String::new(),
@@ -233,7 +298,12 @@ impl Env {
         .await
         .unwrap();
         let app = pi_common::server::wrap(router, pool.clone(), Security::with_csp(routes::CSP));
-        Self { pool, app, strava }
+        Self {
+            pool,
+            app,
+            strava,
+            _db: db,
+        }
     }
 
     pub fn client(&self) -> Client {

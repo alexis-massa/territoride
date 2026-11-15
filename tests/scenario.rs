@@ -140,7 +140,8 @@ fn normalised(v: Value) -> Value {
 async fn the_scripted_game_matches_python() {
     let fixture: Value = serde_json::from_str(FIXTURE).unwrap();
     let now: DateTime<Utc> = fixture["now"].as_str().unwrap().parse().unwrap();
-    let pool = common::fresh_db().await;
+    let db = common::fresh_db().await;
+    let pool = db.pool.clone();
     let mut users = HashMap::new();
     for name in ["ann", "bob", "cy"] {
         users.insert(name, common::add_user(&pool, name).await);

@@ -15,12 +15,12 @@ it and in `.env.python`, so the Python version can start again), `baseline`, `./
   view` works (credentials and TLS roots fine); `sync-all-strava` read and refreshed all 6 players' stored tokens.
 - Preview removed (final dump in `~/backups/territoride-preview/`).
 - Players log in again through Strava once (Python sessions are not read).
-- **Owner:** the 04:00 cron line that runs `manage.py release_expired_ownership` now only logs an error to
-  `~/territoride/decay.log`; delete it (`crontab -e`): the server does the release daily at `DECAY_HOUR_UTC`
-  (default 4). Add a nightly `backup.sh territoride` cron line if you want one.
-- **Rollback:** `just rollback` goes back to the previous Rust image. To return to Python: `cd ~/territoride &&
-  docker compose down`, then `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d` (image
-  `territoride-app` is kept; `.env` still has its keys). Django tables and sessions were never touched.
+- **Clean-up (2026-11-15, after the cutover):** the Python image, checkout and `.env.python` are gone from the Pi
+  (pi-infra REPORT.md lists what was verified first); `.env` holds only the Rust keys. Going back to Python would
+  mean rebuilding from the `python-final` tag; Django's tables are still in the database. `just rollback` still
+  goes back to the previous Rust image.
+- **Owner:** delete the 04:00 `release_expired_ownership` cron line (it fails now; the server releases daily at
+  `DECAY_HOUR_UTC`, default 4) and add the nightly `backup.sh territoride` line (pi-infra README).
 
 Open: the app's Postgres role is still the shared superuser; a role limited to this database is a separate,
 approved step (pi-infra phase 5).

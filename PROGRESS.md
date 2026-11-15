@@ -3,7 +3,7 @@
 Handoff between work sessions: read it first, update it last.
 
 ## State (2026-11-15)
-**Rewrite on the Rust + Svelte stack (pi-infra phase 4): live since 2026-11-15 (v0.8.0).** 25 Rust tests (grid/capture
+**Rewrite on the Rust + Svelte stack (pi-infra phase 4): live since 2026-11-15 (v0.8.0; v0.8.1 for the role change).** 25 Rust tests (grid/capture
 against 91 Python-computed tracks, a 12-step scripted game compared with Django's results, HTTP API against a
 stand-in Strava), 9 web tests, lint clean, migration 1 equals the live schema. Tracking issue #36.
 
@@ -22,8 +22,7 @@ it and in `.env.python`, so the Python version can start again), `baseline`, `./
 - **Owner:** delete the 04:00 `release_expired_ownership` cron line (it fails now; the server releases daily at
   `DECAY_HOUR_UTC`, default 4) and add the nightly `backup.sh territoride` line (pi-infra README).
 
-Open: the app's Postgres role is still the shared superuser; a role limited to this database is a separate,
-approved step (pi-infra phase 5).
+**Database login (2026-11-15):** the app connects as `territoride`, an ordinary role that owns only its database. The Postgres superuser, formerly also called `territoride`, was renamed `pi_admin`; the unused tiger/topology extensions were dropped (v0.8.1, migration 3).
 
 ## Session log
 | Date | Done | Next |

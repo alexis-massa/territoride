@@ -1,0 +1,95 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT a.id, u.username, a.name, a.sport_type, a.recorded_at, a.distance_m, a.track IS NOT NULL AS \"tracked!\"\n           FROM game_activity a JOIN accounts_user u ON u.id = a.user_id\n           WHERE $1::bigint IS NULL OR a.user_id = $1 ORDER BY a.recorded_at DESC, a.id DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "game_activity",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "username",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "accounts_user",
+            "name": "username"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "game_activity",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "sport_type",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "game_activity",
+            "name": "sport_type"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "recorded_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "game_activity",
+            "name": "recorded_at"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "distance_m",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "game_activity",
+            "name": "distance_m"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "tracked!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      null
+    ]
+  },
+  "hash": "f27963276324511ad5fe5c903a656cac230fc102cc75c7ef080a6c4ef0eaa0b6"
+}

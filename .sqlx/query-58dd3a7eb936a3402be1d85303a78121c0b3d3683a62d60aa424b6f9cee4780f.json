@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE game_territorycell SET owner_id = NULL, captured_by_id = NULL, captured_at = NULL\n         WHERE captured_by_id = ANY($1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "58dd3a7eb936a3402be1d85303a78121c0b3d3683a62d60aa424b6f9cee4780f"
+}

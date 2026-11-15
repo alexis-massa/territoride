@@ -1,16 +1,18 @@
-__pycache__/
-*.py[cod]
-.venv/
-db.sqlite3
-staticfiles/
-media/
-logs/
-.osm_import_pending_*.json
-*.osm.pbf
-*.ndjson
-
+# pi-kit v0.4.1
+/target/
+/dist/
 .env
-.mypy_cache/
-.ruff_cache/
+.env.*
+!.env.example
+node_modules/
+web/dist/
+web/dev-dist/
+*.sql
+*.sql.gz
+*.dump
+!migrations/*.sql
 
-.DS_Store
+# POI source files and pending Overpass runs (large, regenerated)
+*.ndjson
+.osm_import_pending_*.json
+decay.log

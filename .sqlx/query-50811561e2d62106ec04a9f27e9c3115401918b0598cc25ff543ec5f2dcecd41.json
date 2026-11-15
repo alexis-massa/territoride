@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT date_joined FROM accounts_user WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "date_joined",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "accounts_user",
+            "name": "date_joined"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "50811561e2d62106ec04a9f27e9c3115401918b0598cc25ff543ec5f2dcecd41"
+}

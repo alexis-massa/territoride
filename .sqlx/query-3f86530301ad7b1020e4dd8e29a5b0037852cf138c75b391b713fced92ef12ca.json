@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO game_territorycell (cell_id, centroid)\n         SELECT c.id, ST_SetSRID(ST_MakePoint(c.x, c.y), 4326)\n         FROM unnest($1::text[], $2::float8[], $3::float8[]) AS c(id, x, y)\n         ON CONFLICT (cell_id) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "Float8Array",
+        "Float8Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3f86530301ad7b1020e4dd8e29a5b0037852cf138c75b391b713fced92ef12ca"
+}

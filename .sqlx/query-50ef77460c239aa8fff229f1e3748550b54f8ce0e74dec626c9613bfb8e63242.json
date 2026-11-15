@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE game_cellvisit SET activity_id = $2, visited_at = $3\n         WHERE user_id = $1 AND cell_id = ANY($4) AND visited_at < $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Timestamptz",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "50ef77460c239aa8fff229f1e3748550b54f8ce0e74dec626c9613bfb8e63242"
+}

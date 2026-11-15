@@ -1,11 +1,18 @@
 # Changelog
 
 All notable changes to this project are documented here. Format loosely
-follows [Keep a Changelog](https://keepachangelog.com/). New entries are
-appended automatically to `[Unreleased]` by a commit hook (see
-[README.md](README.md)); versions are cut and tagged on `main` by hand.
+follows [Keep a Changelog](https://keepachangelog.com/). Versions are cut
+and tagged on `main` by hand.
 
 ## [Unreleased]
+
+## [0.8.0] - 2026-11-15
+- chore: rewrite in Rust (axum, sqlx, h3o) and a Svelte PWA, one small static image; same game, same data
+- feat: the admin's jobs are commands (`list-users`, `delete-activity`, `recapture`, ...)
+- feat: the daily release of expired captures runs inside the server
+- fix: a Strava webhook event is answered at once and handled in the background
+- fix: a revoked Strava authorisation clears the stored tokens
+- fix: player names are never interpreted as HTML in map tooltips
 
 ## [0.7.0] - 2026-11-09
 - feat: "only my activity" map mode, colouring own tiles, rides and passes by recency

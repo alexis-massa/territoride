@@ -1,0 +1,55 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT c.cell_id, u.username, c.captured_at AS \"captured_at!\"\n               FROM game_territorycell c JOIN accounts_user u ON u.id = c.owner_id\n               WHERE ST_Within(c.centroid, ST_MakeEnvelope($1, $2, $3, $4, 4326))",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "cell_id",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "game_territorycell",
+            "name": "cell_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "username",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "accounts_user",
+            "name": "username"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "captured_at!",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "game_territorycell",
+            "name": "captured_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8",
+        "Float8",
+        "Float8",
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "18d7ec8f3f98e4f6ea7e0429564f60e3a8186aebbba2527a0979c5fabf794f39"
+}

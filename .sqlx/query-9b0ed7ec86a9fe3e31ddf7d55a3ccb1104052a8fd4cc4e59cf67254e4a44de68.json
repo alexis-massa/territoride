@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM django_admin_log WHERE user_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9b0ed7ec86a9fe3e31ddf7d55a3ccb1104052a8fd4cc4e59cf67254e4a44de68"
+}

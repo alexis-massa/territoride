@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO accounts_user (password, is_superuser, username, first_name, last_name, email, is_staff,\n               is_active, date_joined, athlete_id, strava_access_token_encrypted, strava_refresh_token_encrypted)\n           VALUES ($1, false, CASE WHEN EXISTS (SELECT 1 FROM accounts_user WHERE username = $2) THEN $2 || '_' || $3::bigint::text ELSE $2 END,\n                   '', '', '', false, true, now(), $3::bigint, '', '')\n           ON CONFLICT (athlete_id) DO UPDATE SET athlete_id = EXCLUDED.athlete_id\n           RETURNING id AS \"id!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "accounts_user",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "784b344d1a2c28edc1d739fb8797e6cf97758c8ab79b9eb77aedb679eb6d7e4c"
+}

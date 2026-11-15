@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO game_poi (name, poi_type, location, altitude_m)\n         SELECT DISTINCT ON (r.name, r.poi_type) r.name, r.poi_type, ST_SetSRID(ST_MakePoint(r.lon, r.lat), 4326), r.alt\n         FROM unnest($1::text[], $2::text[], $3::float8[], $4::float8[], $5::int4[]) AS r(name, poi_type, lon, lat, alt)\n         WHERE NOT EXISTS (SELECT 1 FROM game_poi p WHERE p.name = r.name AND p.poi_type = r.poi_type)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "TextArray",
+        "Float8Array",
+        "Float8Array",
+        "Int4Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7e76c844acf9c09db540d620fbab815a0b56e855d3d0f51ea7f7268454b35370"
+}

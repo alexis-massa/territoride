@@ -1,0 +1,16 @@
+# pi-kit v0.4.1
+# Git hooks (`lefthook install`, done by `just setup`): format check and lint on commit.
+# Tools come from mise (mise.toml), so the hooks also work where mise is not activated (IDEs, GUIs).
+pre-commit:
+  parallel: true
+  jobs:
+    - name: rust
+      glob: "*.rs"
+      run: mise x -- cargo fmt --check && mise x -- cargo clippy --all-targets --quiet -- -D warnings
+    - name: web
+      glob: "web/**/*.{ts,js,svelte,css,html,json}"
+      root: web/
+      run: mise x -- pnpm run lint
+    - name: shell
+      glob: "*.sh"
+      run: mise x -- shellcheck {staged_files} && mise x -- shfmt -d -i 2 {staged_files}

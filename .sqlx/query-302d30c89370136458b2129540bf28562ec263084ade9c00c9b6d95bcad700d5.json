@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE game_poi SET owner_id = NULL, claimed_by_id = NULL, claimed_at = NULL WHERE owner_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "302d30c89370136458b2129540bf28562ec263084ade9c00c9b6d95bcad700d5"
+}

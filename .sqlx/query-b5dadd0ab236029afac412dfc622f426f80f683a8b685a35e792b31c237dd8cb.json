@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT a.name, u.username AS owner, a.recorded_at,\n                  ST_AsGeoJSON(ST_SimplifyPreserveTopology(a.track, $5), 15)::jsonb -> 'coordinates' AS \"coordinates!: Value\"\n           FROM game_activity a JOIN accounts_user u ON u.id = a.user_id\n           WHERE ST_Intersects(a.track, ST_MakeEnvelope($1, $2, $3, $4, 4326))\n             AND CASE WHEN $6::bigint IS NULL\n                      THEN EXISTS (SELECT 1 FROM game_territorycell c WHERE c.captured_by_id = a.id)\n                      ELSE a.user_id = $6 END",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "game_activity",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "owner",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "accounts_user",
+            "name": "username"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "recorded_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "game_activity",
+            "name": "recorded_at"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "coordinates!: Value",
+        "type_info": "Jsonb",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8",
+        "Float8",
+        "Float8",
+        "Float8",
+        "Float8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "b5dadd0ab236029afac412dfc622f426f80f683a8b685a35e792b31c237dd8cb"
+}

@@ -10,9 +10,11 @@
     children: Snippet;
   }
 
-  let { href, children, ...rest }: Props = $props();
+  let { href, children, onclick, ...rest }: Props = $props();
 
-  function go(e: MouseEvent) {
+  function go(e: MouseEvent & { currentTarget: EventTarget & HTMLAnchorElement }) {
+    // A caller's own handler runs too, instead of replacing the navigation.
+    if (typeof onclick === 'function') onclick(e);
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();
     router.navigate(href);

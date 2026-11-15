@@ -9,6 +9,7 @@
 
   let { onchange }: { onchange: () => void } = $props();
   let busy = $state(false);
+  let menuOpen = $state(false);
 
   function report(outcome: Outcome) {
     toasts.show(outcome.message, outcome.ok ? 'success' : 'error', 5000);
@@ -54,13 +55,28 @@
   }
 </script>
 
+<svelte:window
+  onclick={(e) => {
+    if (menuOpen && !(e.target as Element).closest('.account')) menuOpen = false;
+  }}
+  onkeydown={(e) => e.key === 'Escape' && (menuOpen = false)}
+/>
+
 <div class="topbar">
   <Link href="/rules" class="chip">Rules</Link>
   <Link href="/leaderboard" class="chip">Leaderboard</Link>
   {#if session.user}
-    <div class="account">
-      <Link href="/profile" class="chip">{session.user.username}</Link>
+    <div class="account" class:open={menuOpen}>
+      <button
+        class="chip"
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        onclick={() => (menuOpen = !menuOpen)}
+      >
+        {session.user.username}
+      </button>
       <div class="dropdown">
+        <Link href="/profile" class="chip" onclick={() => (menuOpen = false)}>Profile</Link>
         <button class="chip" disabled={busy} onclick={sync}>Sync from Strava</button>
         <label class="chip">
           Import activity
@@ -88,7 +104,7 @@
     padding: 0.75rem 1rem;
     pointer-events: none;
   }
-  .topbar > * {
+  .topbar > :global(*) {
     pointer-events: auto;
   }
   .topbar :global(.chip),
@@ -132,9 +148,14 @@
     right: 0;
     width: max(100%, 11rem);
   }
-  .account:hover .dropdown,
-  .account:focus-within .dropdown {
+  .account.open .dropdown {
     display: flex;
+  }
+  /* A mouse also opens it on hover; a touch screen only by tapping the name (hover sticks there). */
+  @media (hover: hover) {
+    .account:hover .dropdown {
+      display: flex;
+    }
   }
   button:disabled {
     opacity: 0.6;

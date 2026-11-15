@@ -153,11 +153,7 @@ impl<'a> Crawl<'a> {
     }
 
     pub fn with_url(pool: &'a PgPool, poi_type: PoiType, url: &str) -> Self {
-        let http = reqwest::Client::builder()
-            .timeout(HTTP_TIMEOUT)
-            .user_agent(USER_AGENT)
-            .build()
-            .expect("the HTTP client builds");
+        let http = crate::http::client(HTTP_TIMEOUT, USER_AGENT);
         Self {
             pool,
             poi_type,

@@ -27,6 +27,7 @@ crc32fast = "1.5.5"
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "json", "form", "query"] }
 thiserror = "2.0.21"
 tower-http = { version = "0.7.1", features = ["compression-gzip"] }
+webpki-root-certs = "1.0.12"
 
 [dev-dependencies]
 http-body-util = "0.1"

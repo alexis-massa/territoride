@@ -67,11 +67,10 @@ impl Strava {
     }
 
     pub fn with_base(client_id: &str, client_secret: &str, base: &str) -> Self {
-        let http = reqwest::Client::builder()
-            .timeout(Duration::from_secs(15))
-            .user_agent(concat!("territoride/", env!("CARGO_PKG_VERSION")))
-            .build()
-            .expect("the HTTP client builds");
+        let http = crate::http::client(
+            Duration::from_secs(15),
+            concat!("territoride/", env!("CARGO_PKG_VERSION")),
+        );
         Self {
             http,
             client_id: client_id.into(),

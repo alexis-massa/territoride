@@ -8,6 +8,7 @@ pub mod decay;
 pub mod geojson;
 pub mod gpx_file;
 pub mod grid;
+pub mod http;
 pub mod import;
 pub mod osm;
 pub mod polyline;

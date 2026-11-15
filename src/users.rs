@@ -160,3 +160,13 @@ pub async fn strava_connected(pool: &PgPool, user_id: i64) -> ApiResult<bool> {
     .fetch_one(pool)
     .await?)
 }
+
+/// When the player joined.
+pub async fn joined(pool: &PgPool, user_id: i64) -> ApiResult<DateTime<Utc>> {
+    Ok(sqlx::query_scalar!(
+        "SELECT date_joined FROM accounts_user WHERE id = $1",
+        user_id
+    )
+    .fetch_one(pool)
+    .await?)
+}

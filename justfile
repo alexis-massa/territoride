@@ -116,3 +116,41 @@ status:
 # Create a user on the Pi (asks for the password)
 create-user name:
     ssh -t {{ pi }} "cd ~/{{ instance }} && {{ compose }} exec app /app create-user {{ name }}"
+
+# Run an app command on the Pi, e.g. `just manage list-users` or `just manage release-expired`
+manage *args:
+    ssh -t {{ pi }} "cd ~/{{ instance }} && {{ compose }} exec app /app {{ args }}"
+
+# Replay capture for every activity (after adding POIs)
+recapture:
+    just manage recapture
+
+# Sync recent Strava activities for every connected player
+sync-all-strava:
+    just manage sync-all-strava
+
+# Create, view or delete the Strava webhook subscription, e.g. `just strava-webhook create --callback-url https://…/accounts/strava/webhook/`
+strava-webhook *args:
+    just manage strava-webhook {{ args }}
+
+# Prove that migration 1 equals a live schema (a `pg_dump --schema-only --no-owner --no-privileges` file)
+schema-check live_schema: db-up
+    #!/usr/bin/env bash
+    set -euo pipefail
+    db=territoride_schema_check
+    docker exec {{ dev_db }} sh -c "dropdb -U postgres --if-exists --force $db && createdb -U postgres $db"
+    SQLX_OFFLINE=false sqlx migrate run --target-version 1 --database-url {{ dev_url }}/$db >/dev/null
+    dump() { grep -v -E '^\\(un)?restrict' "$@"; }
+    if diff <(dump {{ live_schema }}) <(docker exec {{ dev_db }} pg_dump -U postgres --schema-only --no-owner \
+        --no-privileges --exclude-table=_sqlx_migrations $db | dump); then
+      echo "migration 1 is the live schema"
+    fi
+
+# Record migration 1 as applied on the instance's existing database (once, before its first start)
+baseline:
+    ssh {{ pi }} "cd ~/{{ instance }} && {{ compose }} run --rm --no-deps app baseline"
+
+# Copy compose.yml and the image of this commit to the instance on the Pi, without starting anything
+ship: image
+    ssh {{ pi }} "cat > ~/{{ instance }}/compose.yml" < compose.yml
+    docker save {{ app }}:{{ version }} | gzip -1 | ssh {{ pi }} "gunzip | docker load -q && docker tag {{ app }}:{{ version }} {{ app }}:current"

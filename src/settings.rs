@@ -11,13 +11,13 @@ pub struct Settings {
     pub strava_client_secret: String,
     pub webhook_verify_token: String,
     pub cipher: TokenCipher,
-    /// Hour (UTC) of the daily release of expired ownership; `None` turns the in-process task off.
+    /// Hour (UTC) of the daily release of expired ownership; `None` (set `-1`) turns the in-process task off.
     pub decay_hour_utc: Option<u32>,
 }
 
 impl Settings {
     pub fn from_env() -> Result<Self, ConfigError> {
-        let hour: u32 = env_or("DECAY_HOUR_UTC", 4)?;
+        let hour: i32 = env_or("DECAY_HOUR_UTC", 4)?;
         Ok(Self {
             strava_client_id: env_or("STRAVA_CLIENT_ID", String::new())?,
             strava_client_secret: env_or("STRAVA_CLIENT_SECRET", String::new())?,
@@ -28,7 +28,7 @@ impl Settings {
                     reason,
                 }
             })?,
-            decay_hour_utc: (hour < 24).then_some(hour),
+            decay_hour_utc: u32::try_from(hour).ok().filter(|h| *h < 24),
         })
     }
 }

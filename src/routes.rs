@@ -8,7 +8,7 @@ use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use pi_common::auth::{Session, SessionOptions, Sessions};
 use pi_common::cli::Context;
 use pi_common::{ApiResult, AppError, BoxError, static_files};
@@ -218,6 +218,7 @@ async fn leaderboard(State(pool): State<PgPool>) -> ApiResult<Json<Vec<scoring::
 struct Profile {
     username: String,
     color: String,
+    member_since: DateTime<Utc>,
     score: scoring::Score,
     territory_pct: i64,
     poi_pct: i64,
@@ -236,6 +237,7 @@ async fn profile(State(pool): State<PgPool>, session: Session) -> ApiResult<Json
     let colors = scoring::player_colors(&pool).await?;
     Ok(Json(Profile {
         color: scoring::color_of(&colors, &username),
+        member_since: users::joined(&pool, session.user_id).await?,
         rank: board
             .iter()
             .position(|r| r.username == username)

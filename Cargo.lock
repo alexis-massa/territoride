@@ -757,7 +757,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e35d6e78f4cebb90e51d543db8fe41528851d6deeef6ef21ebd4bfdc1e784776"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1830,8 +1830,8 @@ dependencies = [
 
 [[package]]
 name = "pi-common"
-version = "0.4.2"
-source = "git+ssh://git@github.com/alexis-massa/pi-kit.git?tag=v0.4.2#f83763a054e2b29e37ce701bd9da5d407ad7896f"
+version = "0.4.4"
+source = "git+ssh://git@github.com/alexis-massa/pi-kit.git?tag=v0.4.4#a756015698e2cf870e8bab16c66bc15609c8b742"
 dependencies = [
  "argon2",
  "axum",
@@ -1968,7 +1968,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2233,7 +2233,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3338,7 +3338,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

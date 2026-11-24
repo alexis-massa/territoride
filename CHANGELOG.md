@@ -9,6 +9,7 @@ and tagged on `main` by hand.
 - fix: on a touch screen, tapping your name opens the account menu (Profile, Sync from Strava, Import activity, Log out) instead of going straight to the profile
 - chore: CI (GitHub Actions: lint, tests, builds) and Dependabot for the actions, from pi-kit v0.4.2
 - test: the integration tests drop their databases
+- chore: pi-kit v0.4.4 (headers only; no code change)
 - chore: `src/routes.rs` split into `src/routes/` (account, game, strava, import); no change for players
 - chore: Strava webhook events are read into a typed struct; malformed ones are logged and still answered 200
 - chore: one POI label table (`PoiType::label`) instead of two

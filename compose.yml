@@ -1,4 +1,4 @@
-# pi-kit v0.4.2
+# pi-kit v0.4.4
 # Runs on the Pi from ~/INSTANCE/ (deploy.sh copies this file there; INSTANCE is the app's name unless set).
 # Values come from that folder's .env (APP_DOMAIN). See pi-infra APP_CONTRACT.md.
 name: territoride

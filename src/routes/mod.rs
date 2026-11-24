@@ -40,10 +40,16 @@ struct Assets;
 /// Shared state of the handlers.
 #[derive(Clone, FromRef)]
 pub struct AppState {
-    pool: PgPool,
     sessions: Sessions,
     services: Services,
     web: Arc<WebConfig>,
+}
+
+/// The pool lives in `services` only; handlers that just need it extract `State<PgPool>`.
+impl FromRef<AppState> for PgPool {
+    fn from_ref(state: &AppState) -> Self {
+        state.services.pool.clone()
+    }
 }
 
 struct WebConfig {
@@ -96,7 +102,6 @@ pub async fn build_with(
             cipher: settings.cipher.clone(),
             strava,
         },
-        pool: ctx.pool,
         sessions,
         web: Arc::new(WebConfig {
             origin: format!("{scheme}://{}", ctx.config.app_domain),

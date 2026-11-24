@@ -5,6 +5,8 @@ follows [Keep a Changelog](https://keepachangelog.com/). Versions are cut
 and tagged on `main` by hand.
 
 ## [Unreleased]
+
+## [0.8.2] - 2026-11-24
 - fix: the Rules and Leaderboard buttons work again (clicks were falling through to the map)
 - fix: on a touch screen, tapping your name opens the account menu (Profile, Sync from Strava, Import activity, Log out) instead of going straight to the profile
 - chore: CI (GitHub Actions: lint, tests, builds) and Dependabot for the actions, from pi-kit v0.4.2

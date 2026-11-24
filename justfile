@@ -1,4 +1,4 @@
-# pi-kit v0.4.2
+# pi-kit v0.4.4
 # The same recipes in every app (update them by following pi-kit's UPGRADING.md). App-specific recipes go
 # at the end, below the marker. `just` alone lists them.
 

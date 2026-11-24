@@ -184,11 +184,9 @@ pub struct CaptureDetail {
     pub pois: Vec<PoiDetail>,
 }
 
+/// Display label of a stored POI type; unknown values read as a pass, as before.
 pub fn poi_type_label(poi_type: &str) -> &'static str {
-    match poi_type {
-        "summit" => "Summit",
-        _ => "Mountain pass",
-    }
+    crate::osm::PoiType::from_db(poi_type).map_or("Mountain pass", crate::osm::PoiType::label)
 }
 
 /// Per-ride and per-pass breakdown of a player's current holdings, newest first.

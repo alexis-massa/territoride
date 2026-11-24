@@ -43,6 +43,13 @@ impl PoiType {
         }
     }
 
+    /// Inverse of [`as_db`](Self::as_db).
+    pub fn from_db(s: &str) -> Option<Self> {
+        [Self::MountainPass, Self::Summit]
+            .into_iter()
+            .find(|t| t.as_db() == s)
+    }
+
     pub fn label(self) -> &'static str {
         match self {
             Self::MountainPass => "Mountain pass",
@@ -354,6 +361,14 @@ impl<'a> Crawl<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn poi_type_round_trips_through_the_db_string() {
+        for t in [PoiType::MountainPass, PoiType::Summit] {
+            assert_eq!(PoiType::from_db(t.as_db()), Some(t));
+        }
+        assert_eq!(PoiType::from_db("nope"), None);
+    }
 
     #[test]
     fn altitudes_round_like_python_and_ignore_junk() {

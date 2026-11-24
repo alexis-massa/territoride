@@ -9,6 +9,7 @@ and tagged on `main` by hand.
 - fix: on a touch screen, tapping your name opens the account menu (Profile, Sync from Strava, Import activity, Log out) instead of going straight to the profile
 - chore: CI (GitHub Actions: lint, tests, builds) and Dependabot for the actions, from pi-kit v0.4.2
 - test: the integration tests drop their databases
+- chore: `src/routes.rs` split into `src/routes/` (account, game, strava, import); no change for players
 
 ## [0.8.1] - 2026-11-15
 - chore: migration 3 records the drop of the unused PostGIS extensions (tiger geocoder, topology,

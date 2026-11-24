@@ -1,4 +1,4 @@
-# pi-kit v0.4.2
+# pi-kit v0.4.4
 # Lint, test and build every push to main and every pull request with the same recipes as on the laptop:
 # `just lint`, `just test` (PostGIS in Docker), the web build and a release build. Nothing is published:
 # the arm64 image is still built on the laptop by `just deploy`.

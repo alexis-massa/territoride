@@ -41,7 +41,7 @@ jobs:
           git config --global core.sshCommand 'ssh -i ~/.ssh/pi-kit -o IdentitiesOnly=yes'
           # pnpm fetches pi-ui over HTTPS: send it over SSH with the same key.
           git config --global url.ssh://git@github.com/alexis-massa/pi-kit.git.insteadOf https://github.com/alexis-massa/pi-kit.git
-      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
         with:
           install_args: node pnpm just shellcheck shfmt
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3

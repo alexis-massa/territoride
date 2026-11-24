@@ -3,14 +3,28 @@
 
 use chrono::{DateTime, Utc};
 use pi_common::AppError;
+use serde::Deserialize;
 use serde_json::Value;
 use sqlx::PgPool;
+use std::collections::HashMap;
 
 use crate::capture;
 use crate::crypto::TokenCipher;
 use crate::import::{ImportCounts, import_activities};
 use crate::strava::{Strava, StravaError};
 use crate::users;
+
+/// A Strava webhook event, as far as we read it; absent or odd fields default so the handler can ignore them.
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+pub struct WebhookEvent {
+    pub owner_id: Option<i64>,
+    pub object_type: String,
+    pub object_id: Option<i64>,
+    pub aspect_type: String,
+    /// Strava sends `"authorized": "false"` as a string.
+    pub updates: HashMap<String, Value>,
+}
 
 /// Why a sync did not happen.
 #[derive(Debug, thiserror::Error)]
@@ -64,25 +78,33 @@ impl Services {
     }
 
     /// Process one Strava webhook event: a new or changed activity, a deleted one, or a revoked authorisation.
-    pub async fn handle_event(&self, event: &Value, now: DateTime<Utc>) -> Result<(), SyncError> {
-        let Some(owner) = event["owner_id"].as_i64() else {
+    pub async fn handle_event(
+        &self,
+        event: &WebhookEvent,
+        now: DateTime<Utc>,
+    ) -> Result<(), SyncError> {
+        let Some(owner) = event.owner_id else {
             return Ok(());
         };
         let Some(user_id) = users::id_by_athlete(&self.pool, owner).await? else {
             return Ok(());
         };
-        if event["updates"]["authorized"] == "false" {
+        if event
+            .updates
+            .get("authorized")
+            .is_some_and(|v| v == "false")
+        {
             users::clear_tokens(&self.pool, user_id).await?;
             return Ok(());
         }
-        if event["object_type"] != "activity" {
+        if event.object_type != "activity" {
             return Ok(());
         }
-        let Some(object_id) = event["object_id"].as_i64() else {
+        let Some(object_id) = event.object_id else {
             return Ok(());
         };
-        match event["aspect_type"].as_str() {
-            Some("delete") => {
+        match event.aspect_type.as_str() {
+            "delete" => {
                 let activity = sqlx::query_scalar!(
                     "SELECT id FROM game_activity WHERE strava_activity_id = $1",
                     object_id
@@ -93,7 +115,7 @@ impl Services {
                     capture::release_activity(&self.pool, id).await?;
                 }
             }
-            Some("create" | "update") => {
+            "create" | "update" => {
                 let token = self.valid_token(user_id, now).await?;
                 let activity = self.strava.activity(&token, object_id).await?;
                 import_activities(&self.pool, user_id, &[activity]).await?;
@@ -112,5 +134,39 @@ impl Services {
             tracing::warn!(error = %e, "could not revoke the Strava access");
         }
         capture::delete_user(&self.pool, user_id).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn create_event_is_read() {
+        let e: WebhookEvent = serde_json::from_value(json!({
+            "aspect_type": "create", "event_time": 1549560669, "object_id": 1360128428,
+            "object_type": "activity", "owner_id": 134815, "subscription_id": 120475,
+            "updates": {}
+        }))
+        .unwrap();
+        assert_eq!(e.owner_id, Some(134815));
+        assert_eq!(e.object_id, Some(1360128428));
+        assert_eq!(
+            (e.object_type.as_str(), e.aspect_type.as_str()),
+            ("activity", "create")
+        );
+        assert!(e.updates.is_empty());
+    }
+
+    #[test]
+    fn deauthorisation_event_is_read() {
+        let e: WebhookEvent = serde_json::from_value(json!({
+            "aspect_type": "update", "object_id": 134815, "object_type": "athlete",
+            "owner_id": 134815, "updates": {"authorized": "false"}
+        }))
+        .unwrap();
+        assert!(e.updates.get("authorized").is_some_and(|v| v == "false"));
     }
 }

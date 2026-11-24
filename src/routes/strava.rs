@@ -12,7 +12,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use super::{AppState, Outcome, WebConfig};
-use crate::sync::SyncError;
+use crate::sync::{SyncError, WebhookEvent};
 use crate::users;
 
 const OAUTH_STATE_COOKIE: &str = "strava_oauth_state";
@@ -151,12 +151,20 @@ pub(super) async fn webhook_challenge(
 /// An event from Strava: answered at once (Strava wants a reply within two seconds), handled in the background.
 pub(super) async fn webhook_event(
     State(state): State<AppState>,
-    Json(event): Json<Value>,
+    Json(raw): Json<Value>,
 ) -> StatusCode {
+    // Always 200: Strava retries on errors and finally drops the subscription.
+    let event: WebhookEvent = match serde_json::from_value(raw) {
+        Ok(e) => e,
+        Err(e) => {
+            tracing::warn!(error = %e, "Strava event not understood");
+            return StatusCode::OK;
+        }
+    };
     let services = state.services.clone();
     tokio::spawn(async move {
         if let Err(e) = services.handle_event(&event, Utc::now()).await {
-            tracing::warn!(error = %e, %event, "Strava event not handled");
+            tracing::warn!(error = %e, ?event, "Strava event not handled");
         }
     });
     StatusCode::OK

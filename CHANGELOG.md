@@ -5,6 +5,7 @@ follows [Keep a Changelog](https://keepachangelog.com/). Versions are cut
 and tagged on `main` by hand.
 
 ## [Unreleased]
+- chore: `release.yml` publishes a GitHub Release (notes from this file) when a `vX.Y.Z` tag is pushed; CLAUDE.md says to release before deploying (#51)
 
 ## [0.8.2] - 2026-11-24
 - fix: the Rules and Leaderboard buttons work again (clicks were falling through to the map)

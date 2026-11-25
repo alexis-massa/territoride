@@ -1,0 +1,36 @@
+# pi-kit v0.4.4
+# Publish a GitHub Release when a vX.Y.Z tag is pushed. The notes are that version's section of
+# CHANGELOG.md (GitHub's generated notes when there is none). Nothing is built or uploaded: the image is
+# still built on the laptop by `just deploy`. To give an existing tag its Release (notes from main's
+# changelog): `gh workflow run release.yml -f tag=vX.Y.Z`.
+name: release
+
+on:
+  push:
+    tags: ['v[0-9]*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to release (vX.Y.Z)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 && { echo "$TAG already has a release"; exit 0; }
+          # The section whose heading names the version: "## v1.2.0 (..)", "## [0.5.2] - ..", "## v0.4.4 - ..".
+          awk -v v="${TAG#v}" '/^## /{x=$2; gsub(/\[|\]/,"",x); sub(/^v/,"",x); p=(x==v); next} p' CHANGELOG.md > notes.md
+          if [ -s notes.md ]; then notes=(--notes-file notes.md); else notes=(--generate-notes); fi
+          # A push is the newest release; a backfill must not take the "Latest" badge.
+          latest=false; [ "$GITHUB_EVENT_NAME" = push ] && latest=true
+          gh release create "$TAG" --verify-tag --title "$TAG" --latest="$latest" "${notes[@]}"
